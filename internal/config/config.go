@@ -15,21 +15,33 @@ type Config struct {
 	CurrentUserName string `json:"current_user_name"`
 }
 
-func Read() (Config, error) {
+type State struct {
+	Config *Config
+}
+
+func NewState() (*State, error) {
+	cfg, err := read()
+	if err != nil {
+		return &State{}, fmt.Errorf("problem creating new state: %v", err)
+	}
+	return &State{Config: &cfg}, nil
+}
+
+func read() (Config, error) {
 	destination, err := getConfigFilePath()
 
 	if err != nil {
-		return Config{}, nil
+		return Config{}, err
 	}
 
 	data, err := os.ReadFile(destination)
 	if err != nil {
-		return Config{}, fmt.Errorf("error reading file: %v", err)
+		return Config{}, fmt.Errorf("problem reading file: %w", err)
 	}
 
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
-		return Config{}, fmt.Errorf("error parsing json: %v", err)
+		return Config{}, fmt.Errorf("problem parsing json: %w", err)
 	}
 
 	return config, nil
@@ -57,7 +69,7 @@ func getConfigFilePath() (string, error) {
 	}
 
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("invalid file path")
+		return "", fmt.Errorf("path to invalid file")
 	}
 
 	return path, nil
@@ -66,7 +78,7 @@ func getConfigFilePath() (string, error) {
 func write(cfg Config) error {
 	data, err := json.Marshal(cfg)
 	if err != nil {
-		return fmt.Errorf("error parsing json: %v", err)
+		return fmt.Errorf("problem parsing json: %w", err)
 	}
 	destination, err := getConfigFilePath()
 
@@ -74,7 +86,7 @@ func write(cfg Config) error {
 		return err
 	}
 	if err := os.WriteFile(destination, data, filePerm); err != nil {
-		return fmt.Errorf("error reading file: %v", err)
+		return fmt.Errorf("problem writing to file: %w", err)
 	}
 
 	return nil
