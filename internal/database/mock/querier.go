@@ -71,6 +71,21 @@ func (mr *MockQuerierMockRecorder) GetUser(ctx, name any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockQuerier)(nil).GetUser), ctx, name)
 }
 
+// GetUsers mocks base method.
+func (m *MockQuerier) GetUsers(ctx context.Context) ([]database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsers", ctx)
+	ret0, _ := ret[0].([]database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsers indicates an expected call of GetUsers.
+func (mr *MockQuerierMockRecorder) GetUsers(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsers", reflect.TypeOf((*MockQuerier)(nil).GetUsers), ctx)
+}
+
 // ResetUsers mocks base method.
 func (m *MockQuerier) ResetUsers(ctx context.Context) error {
 	m.ctrl.T.Helper()

@@ -110,13 +110,41 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
+func HandlerGetUsers(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) > 0 {
+		return ErrTooManyArgs
+	}
+
+	users, err := s.Db.GetUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	if len(users) == 0 {
+		fmt.Fprint(w, "No registered users\n")
+		return nil
+	}
+
+	currentUser := s.Config.CurrentUserName
+
+	for _, user := range users {
+		if user.Name == currentUser {
+			fmt.Fprintf(w, "* %v (current)\n", user.Name)
+		} else {
+			fmt.Fprintf(w, "* %v\n", user.Name)
+		}
+	}
+	return nil
+}
+
 func HandlerReset(w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) > 1 {
+	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
 	if err := s.Db.ResetUsers(context.Background()); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "user table has been successfully reset")
+	s.Config.SetUser("")
+	fmt.Fprint(w, "user table has been successfully reset")
+
 	return nil
 }
