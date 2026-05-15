@@ -12,7 +12,7 @@ import (
 )
 
 type State struct {
-	Db     *database.Queries
+	Db     database.Querier
 	Config *config.Config
 }
 
@@ -30,12 +30,12 @@ func main() {
 	}
 	defer db.Close()
 
-	dbQueries := database.New(db)
-	state := &State{Db: dbQueries, Config: &cfg}
+	state := &State{Db: database.New(db), Config: &cfg}
 
 	w := io.Writer(os.Stdin)
 	handlers := NewRegistry()
 	handlers.Register("login", HandlerLogin)
+	handlers.Register("register", HandlerRegister)
 
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {

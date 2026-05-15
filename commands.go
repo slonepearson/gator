@@ -1,14 +1,22 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"gator/internal/database"
 	"io"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 var ErrInvalidCmd = errors.New("invalid command")
 var ErrNotEnoughArgs = errors.New("not enough argument provided")
 var ErrTooManyArgs = errors.New("too many argument provided")
+var ErrAlreadyRegistered = errors.New("username already registered")
+var ErrUserNotRegistered = errors.New("User is not registered, use 'register <username>'")
 
 type Command struct {
 	Name string
@@ -56,6 +64,31 @@ func NewRegistry() Registry {
 	return Registry{Handlers: map[string]func(w io.Writer, s *State, cmd Command) error{}}
 }
 
+func HandlerRegister(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) < 1 {
+		return fmt.Errorf("usage register <username>: %w ", ErrNotEnoughArgs)
+	}
+	if len(cmd.Args) > 1 {
+		return fmt.Errorf("usage register <username>: %w", ErrTooManyArgs)
+	}
+
+	userArgs := database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      strings.ToLower(cmd.Args[0]), // prevent duplicates from case sensitivity.
+	}
+	user, err := s.Db.CreateUser(context.Background(), userArgs)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrAlreadyRegistered, cmd.Args[0])
+	}
+
+	s.Config.SetUser(user.Name)
+	fmt.Fprintf(w, "%v was successfully registered\n", user.Name)
+	fmt.Fprint(w, user)
+	return nil
+}
+
 func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage login <username>: %w ", ErrNotEnoughArgs)
@@ -63,9 +96,17 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 1 {
 		return fmt.Errorf("usage login <username>: %w", ErrTooManyArgs)
 	}
-	if err := s.Config.SetUser(cmd.Args[0]); err != nil {
+
+	user, err := s.Db.GetUser(context.Background(), strings.ToLower(cmd.Args[0]))
+
+	if err != nil {
+		return fmt.Errorf("%s you're not registered: %w'", cmd.Args[0], ErrUserNotRegistered)
+	}
+
+	if err := s.Config.SetUser(user.Name); err != nil {
 		return err
 	}
-	fmt.Fprint(w, "login successful!\n")
+
+	fmt.Fprint(w, "Login successful!\n")
 	return nil
 }
