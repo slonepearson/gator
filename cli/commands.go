@@ -1,9 +1,8 @@
-package commands
+package main
 
 import (
 	"errors"
 	"fmt"
-	"gator/internal/config"
 	"io"
 )
 
@@ -17,14 +16,14 @@ type Command struct {
 }
 
 type Registry struct {
-	Handlers map[string]func(w io.Writer, s *config.State, cmd Command) error
+	Handlers map[string]func(w io.Writer, s *State, cmd Command) error
 }
 
-func (c *Registry) Register(name string, handler func(w io.Writer, s *config.State, cmd Command) error) {
+func (c *Registry) Register(name string, handler func(w io.Writer, s *State, cmd Command) error) {
 	c.Handlers[name] = handler
 }
 
-func (c *Registry) Run(w io.Writer, s *config.State, cmd Command) error {
+func (c *Registry) Run(w io.Writer, s *State, cmd Command) error {
 	command, ok := c.Handlers[cmd.Name]
 	if !ok {
 		return ErrInvalidCmd
@@ -54,10 +53,10 @@ func NewCommand(args ...string) (Command, error) {
 }
 
 func NewRegistry() Registry {
-	return Registry{Handlers: map[string]func(w io.Writer, s *config.State, cmd Command) error{}}
+	return Registry{Handlers: map[string]func(w io.Writer, s *State, cmd Command) error{}}
 }
 
-func HandlerLogin(w io.Writer, s *config.State, cmd Command) error {
+func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage login <username>: %w ", ErrNotEnoughArgs)
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"gator/internal/commands"
 	"gator/internal/config"
 	"gator/internal/database"
 	"io"
@@ -13,7 +12,7 @@ import (
 )
 
 type State struct {
-	db     *database.Queries
+	Db     *database.Queries
 	Config *config.Config
 }
 
@@ -32,13 +31,13 @@ func main() {
 	defer db.Close()
 
 	dbQueries := database.New(db)
-	state := State{db: dbQueries, Config: &cfg}
+	state := &State{Db: dbQueries, Config: &cfg}
 
 	w := io.Writer(os.Stdin)
-	handlers := commands.NewRegistry()
-	handlers.Register("login", commands.HandlerLogin)
+	handlers := NewRegistry()
+	handlers.Register("login", HandlerLogin)
 
-	cmd, err := commands.NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
+	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {
 		fmt.Fprintf(w, "Error: %v\n", err)
 		os.Exit(1)

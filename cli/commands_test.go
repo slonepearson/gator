@@ -1,10 +1,12 @@
-package commands
+package main
 
 import (
 	"bytes"
+	"database/sql"
 	"errors"
 	"fmt"
 	"gator/internal/config"
+	"gator/internal/database"
 	"slices"
 	"strings"
 	"testing"
@@ -52,7 +54,25 @@ func TestParseCliArgs(t *testing.T) {
 }
 
 func TestHandlerLogin(t *testing.T) {
-	state, err := config.NewState()
+	cfg, err := config.Read()
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+	}
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+	}
+	if err := db.Ping(); err != nil {
+		fmt.Printf("Error: %v", err)
+	}
+	defer db.Close()
+
+	dbQueries := database.New(db)
+	state := &State{
+		Db:     dbQueries,
+		Config: &cfg,
+	}
+
 	if err != nil {
 		t.Fatal(err)
 	}
