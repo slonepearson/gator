@@ -85,7 +85,6 @@ func HandlerRegister(w io.Writer, s *State, cmd Command) error {
 
 	s.Config.SetUser(user.Name)
 	fmt.Fprintf(w, "%v was successfully registered\n", user.Name)
-	fmt.Fprint(w, user)
 	return nil
 }
 
@@ -108,5 +107,16 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	}
 
 	fmt.Fprint(w, "Login successful!\n")
+	return nil
+}
+
+func HandlerReset(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) > 1 {
+		return ErrTooManyArgs
+	}
+	if err := s.Db.ResetUsers(context.Background()); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "user table has been successfully reset")
 	return nil
 }

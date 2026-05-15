@@ -36,6 +36,7 @@ func main() {
 	handlers := NewRegistry()
 	handlers.Register("login", HandlerLogin)
 	handlers.Register("register", HandlerRegister)
+	handlers.Register("reset", HandlerReset)
 
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {
@@ -47,4 +48,5 @@ func main() {
 		fmt.Fprintf(w, "Error: %v\n", err)
 		os.Exit(1)
 	}
+	os.Exit(0)
 }
