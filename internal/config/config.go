@@ -15,19 +15,7 @@ type Config struct {
 	CurrentUserName string `json:"current_user_name"`
 }
 
-type State struct {
-	Config *Config
-}
-
-func NewState() (*State, error) {
-	cfg, err := read()
-	if err != nil {
-		return &State{}, fmt.Errorf("problem creating new state: %v", err)
-	}
-	return &State{Config: &cfg}, nil
-}
-
-func read() (Config, error) {
+func Read() (Config, error) {
 	destination, err := getConfigFilePath()
 
 	if err != nil {

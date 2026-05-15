@@ -1,18 +1,38 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"gator/internal/commands"
 	"gator/internal/config"
+	"gator/internal/database"
 	"io"
 	"os"
+
+	_ "github.com/lib/pq"
 )
 
+type State struct {
+	db     *database.Queries
+	Config *config.Config
+}
+
 func main() {
-	state, err := config.NewState()
+	cfg, err := config.Read()
 	if err != nil {
 		fmt.Printf("Error: %v", err)
 	}
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+	}
+	if err := db.Ping(); err != nil {
+		fmt.Printf("Error: %v", err)
+	}
+	defer db.Close()
+
+	dbQueries := database.New(db)
+	state := State{db: dbQueries, Config: &cfg}
 
 	w := io.Writer(os.Stdin)
 	handlers := commands.NewRegistry()
