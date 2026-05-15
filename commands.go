@@ -16,7 +16,7 @@ var ErrInvalidCmd = errors.New("invalid command")
 var ErrNotEnoughArgs = errors.New("not enough argument provided")
 var ErrTooManyArgs = errors.New("too many argument provided")
 var ErrAlreadyRegistered = errors.New("username already registered")
-var ErrUserNotRegistered = errors.New("User is not registered, use 'register <username>'")
+var ErrUserNotRegistered = errors.New("user is not registered, use 'register <username>'")
 
 type Command struct {
 	Name string
@@ -80,7 +80,7 @@ func HandlerRegister(w io.Writer, s *State, cmd Command) error {
 	}
 	user, err := s.Db.CreateUser(context.Background(), userArgs)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrAlreadyRegistered, cmd.Args[0])
+		return ErrAlreadyRegistered
 	}
 
 	s.Config.SetUser(user.Name)
@@ -100,7 +100,7 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	user, err := s.Db.GetUser(context.Background(), strings.ToLower(cmd.Args[0]))
 
 	if err != nil {
-		return fmt.Errorf("%s you're not registered: %w'", cmd.Args[0], ErrUserNotRegistered)
+		return ErrUserNotRegistered
 	}
 
 	if err := s.Config.SetUser(user.Name); err != nil {

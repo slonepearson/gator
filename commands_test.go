@@ -131,7 +131,10 @@ func TestHandlerLogin(t *testing.T) {
 				t.Fatalf("expected no error got: %v", err)
 			}
 
-			cfg := config.Config{}
+			cfg, err := config.Read()
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -206,7 +209,10 @@ func TestHandlerRegister(t *testing.T) {
 				t.Fatalf("expected no error got: %v", err)
 			}
 
-			cfg := config.Config{}
+			cfg, err := config.Read()
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
