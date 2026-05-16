@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"gator/internal/config"
@@ -253,4 +254,8 @@ func TestHandlerRegister(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockSqlcQuerier struct {
+	handlerGetUser func(ctx context.Context, name string) (database.User, error)
 }

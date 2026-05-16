@@ -38,6 +38,7 @@ func main() {
 	handlers.Register("register", HandlerRegister)
 	handlers.Register("reset", HandlerReset)
 	handlers.Register("users", HandlerGetUsers)
+	handlers.Register("agg", HandlerAgg)
 
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {

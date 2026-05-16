@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gator/internal/database"
+	"gator/internal/rss"
 	"io"
 	"strings"
 	"time"
@@ -114,8 +115,9 @@ func HandlerGetUsers(w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
-
-	users, err := s.Db.GetUsers(context.Background())
+	ctx, cancle := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancle()
+	users, err := s.Db.GetUsers(ctx)
 	if err != nil {
 		return err
 	}
@@ -146,5 +148,23 @@ func HandlerReset(w io.Writer, s *State, cmd Command) error {
 	s.Config.SetUser("")
 	fmt.Fprint(w, "user table has been successfully reset")
 
+	return nil
+}
+
+func HandlerAgg(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) > 1 {
+		return ErrTooManyArgs
+	}
+
+	feedUrl := "https://www.wagslane.dev/index.xml"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rssFeed, err := rss.FetchFeed(ctx, feedUrl)
+	if err != nil {
+		return err
+	}
+	rssFeed.UnescapeRssFeed()
+	fmt.Fprint(w, rssFeed)
 	return nil
 }
