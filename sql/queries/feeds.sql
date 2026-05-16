@@ -1,4 +1,3 @@
-
 -- name: AddFeed :one
 INSERT INTO feeds(
     id, created_at, updated_at, name, url, user_id
@@ -6,3 +5,11 @@ INSERT INTO feeds(
     $1, $2, $3, $4, $5, $6
 )
 RETURNING *;
+
+-- name: GetFeeds :many
+SELECT *
+FROM feeds
+ORDER BY created_at;
+
+-- name: ResetFeeds :exec
+DELETE FROM users;

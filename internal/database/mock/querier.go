@@ -14,6 +14,7 @@ import (
 	database "gator/internal/database"
 	reflect "reflect"
 
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -71,19 +72,49 @@ func (mr *MockQuerierMockRecorder) CreateUser(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockQuerier)(nil).CreateUser), ctx, arg)
 }
 
-// GetUser mocks base method.
-func (m *MockQuerier) GetUser(ctx context.Context, name string) (database.User, error) {
+// GetFeeds mocks base method.
+func (m *MockQuerier) GetFeeds(ctx context.Context) ([]database.Feed, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUser", ctx, name)
+	ret := m.ctrl.Call(m, "GetFeeds", ctx)
+	ret0, _ := ret[0].([]database.Feed)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFeeds indicates an expected call of GetFeeds.
+func (mr *MockQuerierMockRecorder) GetFeeds(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeeds", reflect.TypeOf((*MockQuerier)(nil).GetFeeds), ctx)
+}
+
+// GetUserById mocks base method.
+func (m *MockQuerier) GetUserById(ctx context.Context, id uuid.UUID) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserById", ctx, id)
 	ret0, _ := ret[0].(database.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUser indicates an expected call of GetUser.
-func (mr *MockQuerierMockRecorder) GetUser(ctx, name any) *gomock.Call {
+// GetUserById indicates an expected call of GetUserById.
+func (mr *MockQuerierMockRecorder) GetUserById(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockQuerier)(nil).GetUser), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserById", reflect.TypeOf((*MockQuerier)(nil).GetUserById), ctx, id)
+}
+
+// GetUserByName mocks base method.
+func (m *MockQuerier) GetUserByName(ctx context.Context, name string) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByName", ctx, name)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByName indicates an expected call of GetUserByName.
+func (mr *MockQuerierMockRecorder) GetUserByName(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByName", reflect.TypeOf((*MockQuerier)(nil).GetUserByName), ctx, name)
 }
 
 // GetUsers mocks base method.
@@ -99,6 +130,20 @@ func (m *MockQuerier) GetUsers(ctx context.Context) ([]database.User, error) {
 func (mr *MockQuerierMockRecorder) GetUsers(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsers", reflect.TypeOf((*MockQuerier)(nil).GetUsers), ctx)
+}
+
+// ResetFeeds mocks base method.
+func (m *MockQuerier) ResetFeeds(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetFeeds", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetFeeds indicates an expected call of ResetFeeds.
+func (mr *MockQuerierMockRecorder) ResetFeeds(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetFeeds", reflect.TypeOf((*MockQuerier)(nil).ResetFeeds), ctx)
 }
 
 // ResetUsers mocks base method.

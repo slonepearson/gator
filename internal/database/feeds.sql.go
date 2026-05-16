@@ -50,3 +50,48 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 	)
 	return i, err
 }
+
+const getFeeds = `-- name: GetFeeds :many
+SELECT id, created_at, updated_at, name, url, user_id
+FROM feeds
+ORDER BY created_at
+`
+
+func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, getFeeds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Feed
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Url,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resetFeeds = `-- name: ResetFeeds :exec
+DELETE FROM users
+`
+
+func (q *Queries) ResetFeeds(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetFeeds)
+	return err
+}

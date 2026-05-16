@@ -143,7 +143,7 @@ func TestHandlerLogin(t *testing.T) {
 
 			if tc.shouldMock {
 				mockDB.EXPECT().
-					GetUser(gomock.Any(), cmd.Args[0]).
+					GetUserByName(gomock.Any(), cmd.Args[0]).
 					Return(database.User{Name: cmd.Args[0]}, tc.expectedSqlErr)
 			}
 

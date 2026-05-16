@@ -98,7 +98,7 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 		return fmt.Errorf("usage login <username>: %w", ErrTooManyArgs)
 	}
 
-	user, err := s.Db.GetUser(context.Background(), strings.ToLower(cmd.Args[0]))
+	user, err := s.Db.GetUserByName(context.Background(), strings.ToLower(cmd.Args[0]))
 
 	if err != nil {
 		return ErrUserNotRegistered
@@ -143,9 +143,15 @@ func HandlerReset(w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
-	if err := s.Db.ResetUsers(context.Background()); err != nil {
+	ctx, cancle := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancle()
+	if err := s.Db.ResetUsers(ctx); err != nil {
 		return err
 	}
+	if err := s.Db.ResetFeeds(ctx); err != nil {
+		return err
+	}
+
 	s.Config.SetUser("")
 	fmt.Fprint(w, "user table has been successfully reset")
 
@@ -185,7 +191,7 @@ func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
 	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancle()
 
-	user, err := s.Db.GetUser(ctx, s.Config.CurrentUserName)
+	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
 	if err != nil {
 		return err
 	}
@@ -204,5 +210,35 @@ func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
 	}
 
 	fmt.Fprint(w, feed)
+	return nil
+}
+
+func HandlerFeeds(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) > 0 {
+		return ErrTooManyArgs
+	}
+
+	ctx, cancle := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancle()
+
+	feeds, err := s.Db.GetFeeds(ctx)
+
+	if err != nil {
+		return err
+	}
+	if len(feeds) < 1 {
+		fmt.Fprint(w, "no feeds have been added")
+		return nil
+	}
+
+	for _, feed := range feeds {
+		user, err := s.Db.GetUserById(ctx, feed.UserID)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "Feed name: %v\n", feed.Name)
+		fmt.Fprintf(w, "Feed URL: %v\n", feed.Url)
+		fmt.Fprintf(w, "Created by: %v\n", user.Name)
+	}
 	return nil
 }
