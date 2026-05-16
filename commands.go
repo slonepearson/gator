@@ -7,6 +7,7 @@ import (
 	"gator/internal/database"
 	"gator/internal/rss"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
@@ -166,5 +167,42 @@ func HandlerAgg(w io.Writer, s *State, cmd Command) error {
 	}
 	rssFeed.UnescapeRssFeed()
 	fmt.Fprint(w, rssFeed)
+	return nil
+}
+
+func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) < 2 {
+		return ErrNotEnoughArgs
+	}
+	if len(cmd.Args) > 2 {
+		return ErrTooManyArgs
+	}
+	_, err := url.ParseRequestURI(cmd.Args[1])
+	if err != nil {
+		return fmt.Errorf("Invalid URL: %w", err)
+	}
+
+	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancle()
+
+	user, err := s.Db.GetUser(ctx, s.Config.CurrentUserName)
+	if err != nil {
+		return err
+	}
+	feedParams := database.AddFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      cmd.Args[0],
+		Url:       cmd.Args[1],
+		UserID:    user.ID,
+	}
+
+	feed, err := s.Db.AddFeed(ctx, feedParams)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprint(w, feed)
 	return nil
 }
