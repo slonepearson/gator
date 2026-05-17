@@ -102,6 +102,21 @@ func (mr *MockQuerierMockRecorder) GetFeedByUrl(ctx, url any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeedByUrl", reflect.TypeOf((*MockQuerier)(nil).GetFeedByUrl), ctx, url)
 }
 
+// GetFeedFollowsForUser mocks base method.
+func (m *MockQuerier) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) ([]database.GetFeedFollowsForUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFeedFollowsForUser", ctx, userID)
+	ret0, _ := ret[0].([]database.GetFeedFollowsForUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFeedFollowsForUser indicates an expected call of GetFeedFollowsForUser.
+func (mr *MockQuerierMockRecorder) GetFeedFollowsForUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeedFollowsForUser", reflect.TypeOf((*MockQuerier)(nil).GetFeedFollowsForUser), ctx, userID)
+}
+
 // GetFeeds mocks base method.
 func (m *MockQuerier) GetFeeds(ctx context.Context) ([]database.Feed, error) {
 	m.ctrl.T.Helper()

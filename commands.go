@@ -153,7 +153,7 @@ func HandlerReset(w io.Writer, s *State, cmd Command) error {
 	}
 
 	s.Config.SetUser("")
-	fmt.Fprint(w, "user table has been successfully reset")
+	fmt.Fprint(w, "Tables have been successfully reset")
 
 	return nil
 }
@@ -209,7 +209,21 @@ func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
 		return err
 	}
 
-	fmt.Fprint(w, feed)
+	feedFollowParams := database.AddFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+
+	_, err = s.Db.AddFeedFollow(ctx, feedFollowParams)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "%v has added and followed feed %v", user.Name, feed.Name)
 	return nil
 }
 
@@ -265,6 +279,7 @@ func HandlerFollow(w io.Writer, s *State, cmd Command) error {
 	}
 
 	feedFollowParams := database.AddFeedFollowParams{
+		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		UserID:    user.ID,
@@ -277,5 +292,35 @@ func HandlerFollow(w io.Writer, s *State, cmd Command) error {
 	}
 
 	fmt.Fprintf(w, "User %v followed the feed: %v", feedFollow.UserName, feedFollow.FeedName)
+	return nil
+}
+
+func HandlerFollowing(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) > 0 {
+		return ErrTooManyArgs
+	}
+
+	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancle()
+
+	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
+	if err != nil {
+		return err
+	}
+
+	feeds, err := s.Db.GetFeedFollowsForUser(ctx, user.ID)
+	if err != nil {
+		return nil
+	}
+
+	if len(feeds) < 1 {
+		fmt.Fprintf(w, "%v is not following any feeds\n", user.Name)
+		return nil
+	}
+
+	fmt.Fprintf(w, "%v is following:\n", user.Name)
+	for _, feed := range feeds {
+		fmt.Fprintf(w, "* %v\n", feed.FeedName)
+	}
 	return nil
 }
