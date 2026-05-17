@@ -11,5 +11,10 @@ SELECT *
 FROM feeds
 ORDER BY created_at;
 
+-- name: GetFeedByUrl :one
+SELECT *
+FROM feeds
+WHERE url = $1;
+
 -- name: ResetFeeds :exec
 DELETE FROM users;

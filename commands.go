@@ -242,3 +242,40 @@ func HandlerFeeds(w io.Writer, s *State, cmd Command) error {
 	}
 	return nil
 }
+
+func HandlerFollow(w io.Writer, s *State, cmd Command) error {
+	if len(cmd.Args) < 1 {
+		return ErrNotEnoughArgs
+	}
+	if len(cmd.Args) > 1 {
+		return ErrTooManyArgs
+	}
+
+	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancle()
+
+	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
+	if err != nil {
+		return err
+	}
+
+	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
+	if err != nil {
+		return err
+	}
+
+	feedFollowParams := database.AddFeedFollowParams{
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+
+	feedFollow, err := s.Db.AddFeedFollow(ctx, feedFollowParams)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "User %v followed the feed: %v", feedFollow.UserName, feedFollow.FeedName)
+	return nil
+}

@@ -87,6 +87,21 @@ func (mr *MockQuerierMockRecorder) CreateUser(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockQuerier)(nil).CreateUser), ctx, arg)
 }
 
+// GetFeedByUrl mocks base method.
+func (m *MockQuerier) GetFeedByUrl(ctx context.Context, url string) (database.Feed, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFeedByUrl", ctx, url)
+	ret0, _ := ret[0].(database.Feed)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFeedByUrl indicates an expected call of GetFeedByUrl.
+func (mr *MockQuerierMockRecorder) GetFeedByUrl(ctx, url any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeedByUrl", reflect.TypeOf((*MockQuerier)(nil).GetFeedByUrl), ctx, url)
+}
+
 // GetFeeds mocks base method.
 func (m *MockQuerier) GetFeeds(ctx context.Context) ([]database.Feed, error) {
 	m.ctrl.T.Helper()

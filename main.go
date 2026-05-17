@@ -42,7 +42,7 @@ func main() {
 	handlers.Register("agg", HandlerAgg)
 	handlers.Register("addfeed", HandlerAddFeed)
 	handlers.Register("feeds", HandlerFeeds)
-
+	handlers.Register("follow", HandlerFollow)
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {
 		fmt.Fprintf(w, "Error: %v\n", err)

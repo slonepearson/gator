@@ -14,6 +14,7 @@ type Querier interface {
 	AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error)
 	AddFeedFollow(ctx context.Context, arg AddFeedFollowParams) (AddFeedFollowRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	GetFeedByUrl(ctx context.Context, url string) (Feed, error)
 	GetFeeds(ctx context.Context) ([]Feed, error)
 	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByName(ctx context.Context, name string) (User, error)
