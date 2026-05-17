@@ -185,7 +185,7 @@ func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
 	}
 	_, err := url.ParseRequestURI(cmd.Args[1])
 	if err != nil {
-		return fmt.Errorf("Invalid URL: %w", err)
+		return fmt.Errorf("invalid URL: %v", cmd.Args[1])
 	}
 
 	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)

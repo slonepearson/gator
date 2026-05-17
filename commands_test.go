@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"gator/internal/config"
@@ -151,7 +150,6 @@ func TestHandlerLogin(t *testing.T) {
 			var buf bytes.Buffer
 			err = handlers.Run(&buf, &state, cmd)
 
-			// Evaluate function execution results
 			if tc.expectedErr != nil {
 				if err == nil {
 					t.Fatal("expected an error got <nil>")
@@ -254,8 +252,4 @@ func TestHandlerRegister(t *testing.T) {
 			}
 		})
 	}
-}
-
-type mockSqlcQuerier struct {
-	handlerGetUser func(ctx context.Context, name string) (database.User, error)
 }

@@ -57,6 +57,21 @@ func (mr *MockQuerierMockRecorder) AddFeed(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFeed", reflect.TypeOf((*MockQuerier)(nil).AddFeed), ctx, arg)
 }
 
+// AddFeedFollow mocks base method.
+func (m *MockQuerier) AddFeedFollow(ctx context.Context, arg database.AddFeedFollowParams) (database.AddFeedFollowRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddFeedFollow", ctx, arg)
+	ret0, _ := ret[0].(database.AddFeedFollowRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddFeedFollow indicates an expected call of AddFeedFollow.
+func (mr *MockQuerierMockRecorder) AddFeedFollow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFeedFollow", reflect.TypeOf((*MockQuerier)(nil).AddFeedFollow), ctx, arg)
+}
+
 // CreateUser mocks base method.
 func (m *MockQuerier) CreateUser(ctx context.Context, arg database.CreateUserParams) (database.User, error) {
 	m.ctrl.T.Helper()
