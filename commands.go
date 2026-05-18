@@ -25,21 +25,23 @@ type Command struct {
 	Args []string
 }
 
+type handler func(ctx context.Context, w io.Writer, s *State, cmd Command) error
+
 type Registry struct {
-	Handlers map[string]func(w io.Writer, s *State, cmd Command) error
+	Handlers map[string]handler
 }
 
-func (c *Registry) Register(name string, handler func(w io.Writer, s *State, cmd Command) error) {
+func (c *Registry) Register(name string, handler handler) {
 	c.Handlers[name] = handler
 }
 
-func (c *Registry) Run(w io.Writer, s *State, cmd Command) error {
+func (c *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	command, ok := c.Handlers[cmd.Name]
 	if !ok {
 		return ErrInvalidCmd
 	}
 
-	return command(w, s, cmd)
+	return command(ctx, w, s, cmd)
 }
 
 /*
@@ -63,10 +65,22 @@ func NewCommand(args ...string) (Command, error) {
 }
 
 func NewRegistry() Registry {
-	return Registry{Handlers: map[string]func(w io.Writer, s *State, cmd Command) error{}}
+	return Registry{Handlers: map[string]handler{}}
 }
 
-func HandlerRegister(w io.Writer, s *State, cmd Command) error {
+func WithLoggedIn(next func(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error) handler {
+	return func(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
+		if err != nil {
+			return err
+		}
+		return next(ctx, w, s, cmd, user)
+	}
+}
+
+func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage register <username>: %w ", ErrNotEnoughArgs)
 	}
@@ -74,13 +88,16 @@ func HandlerRegister(w io.Writer, s *State, cmd Command) error {
 		return fmt.Errorf("usage register <username>: %w", ErrTooManyArgs)
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	userArgs := database.CreateUserParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Name:      strings.ToLower(cmd.Args[0]), // prevent duplicates from case sensitivity.
 	}
-	user, err := s.Db.CreateUser(context.Background(), userArgs)
+	user, err := s.Db.CreateUser(ctx, userArgs)
 	if err != nil {
 		return ErrAlreadyRegistered
 	}
@@ -90,7 +107,7 @@ func HandlerRegister(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerLogin(w io.Writer, s *State, cmd Command) error {
+func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage login <username>: %w ", ErrNotEnoughArgs)
 	}
@@ -98,7 +115,10 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 		return fmt.Errorf("usage login <username>: %w", ErrTooManyArgs)
 	}
 
-	user, err := s.Db.GetUserByName(context.Background(), strings.ToLower(cmd.Args[0]))
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	user, err := s.Db.GetUserByName(ctx, strings.ToLower(cmd.Args[0]))
 
 	if err != nil {
 		return ErrUserNotRegistered
@@ -112,12 +132,13 @@ func HandlerLogin(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerGetUsers(w io.Writer, s *State, cmd Command) error {
+func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
-	ctx, cancle := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancle()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	users, err := s.Db.GetUsers(ctx)
 	if err != nil {
 		return err
@@ -139,12 +160,13 @@ func HandlerGetUsers(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerReset(w io.Writer, s *State, cmd Command) error {
+func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
-	ctx, cancle := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancle()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := s.Db.ResetUsers(ctx); err != nil {
 		return err
 	}
@@ -158,43 +180,43 @@ func HandlerReset(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerAgg(w io.Writer, s *State, cmd Command) error {
+func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 1 {
 		return ErrTooManyArgs
 	}
 
-	feedUrl := "https://www.wagslane.dev/index.xml"
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	rssFeed, err := rss.FetchFeed(ctx, feedUrl)
+	feedUrl := "https://www.wagslane.dev/index.xml"
+
+	rssFeed, err := rss.FetchFeed(s.Client, ctx, feedUrl)
+
 	if err != nil {
 		return err
 	}
+
 	rssFeed.UnescapeRssFeed()
 	fmt.Fprint(w, rssFeed)
 	return nil
 }
 
-func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
+func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) < 2 {
 		return ErrNotEnoughArgs
 	}
 	if len(cmd.Args) > 2 {
 		return ErrTooManyArgs
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	_, err := url.ParseRequestURI(cmd.Args[1])
 	if err != nil {
 		return fmt.Errorf("invalid URL: %v", cmd.Args[1])
 	}
 
-	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancle()
-
-	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
-	if err != nil {
-		return err
-	}
 	feedParams := database.AddFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
@@ -227,13 +249,13 @@ func HandlerAddFeed(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerFeeds(w io.Writer, s *State, cmd Command) error {
+func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
 
-	ctx, cancle := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancle()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	feeds, err := s.Db.GetFeeds(ctx)
 
@@ -257,7 +279,7 @@ func HandlerFeeds(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerFollow(w io.Writer, s *State, cmd Command) error {
+func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return ErrNotEnoughArgs
 	}
@@ -265,13 +287,8 @@ func HandlerFollow(w io.Writer, s *State, cmd Command) error {
 		return ErrTooManyArgs
 	}
 
-	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancle()
-
-	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
 	if err != nil {
@@ -295,18 +312,13 @@ func HandlerFollow(w io.Writer, s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerFollowing(w io.Writer, s *State, cmd Command) error {
+func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) > 0 {
 		return ErrTooManyArgs
 	}
 
-	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancle()
-
-	user, err := s.Db.GetUserByName(ctx, s.Config.CurrentUserName)
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	feeds, err := s.Db.GetFeedFollowsForUser(ctx, user.ID)
 	if err != nil {

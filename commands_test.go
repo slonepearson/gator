@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"gator/internal/config"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/mock/gomock"
 )
@@ -73,17 +75,20 @@ func TestNonRegisteredCommands(t *testing.T) {
 			expectedErr: ErrInvalidCmd,
 		},
 	}
-
+	pCtx, stop := context.WithCancel(context.Background())
+	defer stop()
 	for i, tc := range cases {
 		t.Run(fmt.Sprintf("Test %v:", i+1), func(t *testing.T) {
 			var buf bytes.Buffer
+			ctx, cancel := context.WithTimeout(pCtx, 5*time.Second)
+			defer cancel()
 			state := State{Config: &config.Config{}}
 			cmd, err := NewCommand(tc.name)
 			if err != nil {
 				t.Fatalf("expected no error got: %v", err)
 			}
 
-			err = handlers.Run(&buf, &state, cmd)
+			err = handlers.Run(ctx, &buf, &state, cmd)
 			if !errors.Is(err, tc.expectedErr) {
 				t.Fatalf("expected error %v, got: %v", tc.expectedErr, err)
 			}
@@ -122,6 +127,8 @@ func TestHandlerLogin(t *testing.T) {
 			expectedErr: ErrTooManyArgs,
 		},
 	}
+	pCtx, stop := context.WithCancel(context.Background())
+	defer stop()
 
 	for i, tc := range cases {
 		t.Run(fmt.Sprintf("Test %v", i+1), func(t *testing.T) {
@@ -146,9 +153,11 @@ func TestHandlerLogin(t *testing.T) {
 					Return(database.User{Name: cmd.Args[0]}, tc.expectedSqlErr)
 			}
 
+			ctx, cancel := context.WithTimeout(pCtx, 5*time.Second)
+			defer cancel()
 			state := State{Db: mockDB, Config: &cfg}
 			var buf bytes.Buffer
-			err = handlers.Run(&buf, &state, cmd)
+			err = handlers.Run(ctx, &buf, &state, cmd)
 
 			if tc.expectedErr != nil {
 				if err == nil {
@@ -200,6 +209,8 @@ func TestHandlerRegister(t *testing.T) {
 			shouldMock:  true,
 		},
 	}
+	pCtx, stop := context.WithCancel(context.Background())
+	defer stop()
 
 	for i, tc := range cases {
 		t.Run(fmt.Sprintf("Test %v", i+1), func(t *testing.T) {
@@ -230,9 +241,11 @@ func TestHandlerRegister(t *testing.T) {
 					Return(database.User{Name: expectedUser}, tc.SqlErr)
 			}
 
+			ctx, cancel := context.WithTimeout(pCtx, 5*time.Second)
+			defer cancel()
 			var buf bytes.Buffer
 			state := State{Db: mockDb, Config: &cfg}
-			err = handlers.Run(&buf, &state, cmd)
+			err = handlers.Run(ctx, &buf, &state, cmd)
 
 			if tc.expectedErr != nil {
 				if err == nil {
