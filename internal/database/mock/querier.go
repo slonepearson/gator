@@ -177,6 +177,20 @@ func (mr *MockQuerierMockRecorder) GetUsers(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsers", reflect.TypeOf((*MockQuerier)(nil).GetUsers), ctx)
 }
 
+// RemoveFeedFollow mocks base method.
+func (m *MockQuerier) RemoveFeedFollow(ctx context.Context, arg database.RemoveFeedFollowParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveFeedFollow", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveFeedFollow indicates an expected call of RemoveFeedFollow.
+func (mr *MockQuerierMockRecorder) RemoveFeedFollow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFeedFollow", reflect.TypeOf((*MockQuerier)(nil).RemoveFeedFollow), ctx, arg)
+}
+
 // ResetFeeds mocks base method.
 func (m *MockQuerier) ResetFeeds(ctx context.Context) error {
 	m.ctrl.T.Helper()

@@ -20,6 +20,7 @@ type Querier interface {
 	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByName(ctx context.Context, name string) (User, error)
 	GetUsers(ctx context.Context) ([]User, error)
+	RemoveFeedFollow(ctx context.Context, arg RemoveFeedFollowParams) error
 	ResetFeeds(ctx context.Context) error
 	ResetUsers(ctx context.Context) error
 }

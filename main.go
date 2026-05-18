@@ -48,15 +48,16 @@ func main() {
 	w := io.Writer(os.Stdout)
 
 	handlers := NewRegistry()
-	handlers.Register("login", HandlerLogin)
-	handlers.Register("register", HandlerRegister)
-	handlers.Register("reset", HandlerReset)
-	handlers.Register("users", HandlerGetUsers)
-	handlers.Register("agg", HandlerAgg)
-	handlers.Register("addfeed", WithLoggedIn(HandlerAddFeed))
-	handlers.Register("feeds", HandlerFeeds)
-	handlers.Register("follow", WithLoggedIn(HandlerFollow))
-	handlers.Register("following", WithLoggedIn(HandlerFollowing))
+	handlers.Register("login", WithExpectArgs(HandlerLogin, 1))
+	handlers.Register("register", WithExpectArgs(HandlerRegister, 1))
+	handlers.Register("reset", WithExpectArgs(HandlerReset, 0))
+	handlers.Register("users", WithExpectArgs(HandlerGetUsers, 0))
+	handlers.Register("agg", WithExpectArgs(HandlerAgg, 1))
+	handlers.Register("addfeed", WithExpectArgs(WithLoggedIn(HandlerAddFeed), 2))
+	handlers.Register("feeds", WithExpectArgs(HandlerFeeds, 0))
+	handlers.Register("follow", WithExpectArgs(WithLoggedIn(HandlerFollow), 1))
+	handlers.Register("following", WithExpectArgs(WithLoggedIn(HandlerFollowing), 0))
+	handlers.Register("unfollow", WithExpectArgs(WithLoggedIn(HandlerUnfollow), 1))
 
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {

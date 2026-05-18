@@ -57,15 +57,29 @@ func NewCommand(args ...string) (Command, error) {
 
 	commandName := args[0]
 	commandArgs := []string{}
+
 	if len(args) > 1 {
 		commandArgs = args[1:]
 	}
+
 	cmd := Command{Name: commandName, Args: commandArgs}
 	return cmd, nil
 }
 
 func NewRegistry() Registry {
 	return Registry{Handlers: map[string]handler{}}
+}
+
+func WithExpectArgs(next handler, expectedArgument int) handler {
+	return func(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+		if len(cmd.Args) > expectedArgument {
+			return ErrTooManyArgs
+		}
+		if len(cmd.Args) < expectedArgument {
+			return ErrNotEnoughArgs
+		}
+		return next(ctx, w, s, cmd)
+	}
 }
 
 func WithLoggedIn(next func(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error) handler {
@@ -81,13 +95,6 @@ func WithLoggedIn(next func(ctx context.Context, w io.Writer, s *State, cmd Comm
 }
 
 func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) < 1 {
-		return fmt.Errorf("usage register <username>: %w ", ErrNotEnoughArgs)
-	}
-	if len(cmd.Args) > 1 {
-		return fmt.Errorf("usage register <username>: %w", ErrTooManyArgs)
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -108,12 +115,6 @@ func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) er
 }
 
 func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) < 1 {
-		return fmt.Errorf("usage login <username>: %w ", ErrNotEnoughArgs)
-	}
-	if len(cmd.Args) > 1 {
-		return fmt.Errorf("usage login <username>: %w", ErrTooManyArgs)
-	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -133,9 +134,6 @@ func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) > 0 {
-		return ErrTooManyArgs
-	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -161,9 +159,6 @@ func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) er
 }
 
 func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) > 0 {
-		return ErrTooManyArgs
-	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -181,10 +176,6 @@ func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) > 1 {
-		return ErrTooManyArgs
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -202,13 +193,6 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 }
 
 func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	if len(cmd.Args) < 2 {
-		return ErrNotEnoughArgs
-	}
-	if len(cmd.Args) > 2 {
-		return ErrTooManyArgs
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -250,10 +234,6 @@ func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, use
 }
 
 func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	if len(cmd.Args) > 0 {
-		return ErrTooManyArgs
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -280,13 +260,6 @@ func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	if len(cmd.Args) < 1 {
-		return ErrNotEnoughArgs
-	}
-	if len(cmd.Args) > 1 {
-		return ErrTooManyArgs
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -313,10 +286,6 @@ func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user
 }
 
 func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	if len(cmd.Args) > 0 {
-		return ErrTooManyArgs
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -334,5 +303,33 @@ func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, u
 	for _, feed := range feeds {
 		fmt.Fprintf(w, "* %v\n", feed.FeedName)
 	}
+	return nil
+}
+
+func HandlerUnfollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+	_, err := url.ParseRequestURI(cmd.Args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL: %v", cmd.Args[0])
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
+	if err != nil {
+		return err
+	}
+
+	feedFollowParams := database.RemoveFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	if err := s.Db.RemoveFeedFollow(ctx, feedFollowParams); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "%v unfollowed %v", user.Name, feed.Name)
+
 	return nil
 }
