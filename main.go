@@ -44,36 +44,16 @@ func main() {
 	w := io.Writer(os.Stdout)
 
 	r := NewRegistry()
-
-	r.Register("login", "login using your username", "login <username>", 1,
-		WithExpectArgs(r, HandlerLogin))
-
-	r.Register("register", "register a username that doesn't exist", "register <username>", 1,
-		WithExpectArgs(r, HandlerRegister))
-
-	r.Register("reset", "reset all sql tables", "reset", 0,
-		WithExpectArgs(r, HandlerReset))
-
-	r.Register("users", "get all registered users", "users", 0,
-		WithExpectArgs(r, HandlerGetUsers))
-
-	r.Register("agg", "aggregate followed feeds", "agg", 0,
-		WithExpectArgs(r, HandlerAgg))
-
-	r.Register("addfeed", "add and follow a feed", "addfeed <feed name> <feed url>", 2,
-		WithExpectArgs(r, WithLoggedIn(HandlerAddFeed)))
-
-	r.Register("feeds", "return all added feeds", "feeds", 0,
-		WithExpectArgs(r, HandlerFeeds))
-
-	r.Register("follow", "follow a feed added by another user", "follow <feed url>", 1,
-		WithExpectArgs(r, WithLoggedIn(HandlerFollow)))
-
-	r.Register("following", "return all feeds you are following", "following>", 0,
-		WithExpectArgs(r, WithLoggedIn(HandlerFollowing)))
-
-	r.Register("unfollow", "unfollow a feed", "unfollow <feed url>", 1,
-		WithExpectArgs(r, WithLoggedIn(HandlerUnfollow)))
+	r.Register("login", "login using your username", "login <username>", 1, HandlerLogin)
+	r.Register("register", "register a username that doesn't exist", "register <username>", 1, HandlerRegister)
+	r.Register("reset", "reset all sql tables", "reset", 0, HandlerReset)
+	r.Register("users", "get all registered users", "users", 0, HandlerGetUsers)
+	r.Register("agg", "aggregate followed feeds", "agg", 0, HandlerAgg)
+	r.Register("addfeed", "add and follow a feed", "addfeed <feed name> <feed url>", 2, WithLoggedIn(HandlerAddFeed))
+	r.Register("feeds", "return all added feeds", "feeds", 0, HandlerFeeds)
+	r.Register("follow", "follow a feed added by another user", "follow <feed url>", 1, WithLoggedIn(HandlerFollow))
+	r.Register("following", "return all feeds you are following", "following>", 0, WithLoggedIn(HandlerFollowing))
+	r.Register("unfollow", "unfollow a feed", "unfollow <feed url>", 1, WithLoggedIn(HandlerUnfollow))
 
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {

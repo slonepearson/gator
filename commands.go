@@ -38,8 +38,8 @@ type Registry struct {
 	Handlers map[string]RegisteredCommand
 }
 
-func (c *Registry) Register(name string, desc string, usage string, expectedArgs int, handler handler) {
-	c.Handlers[name] = RegisteredCommand{
+func (r *Registry) Register(name string, desc string, usage string, expectedArgs int, handler handler) {
+	r.Handlers[name] = RegisteredCommand{
 		h:            handler,
 		description:  desc,
 		usage:        usage,
@@ -47,13 +47,20 @@ func (c *Registry) Register(name string, desc string, usage string, expectedArgs
 	}
 }
 
-func (c *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	command, ok := c.Handlers[cmd.Name]
+func (r *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+
+	regCmd, ok := r.Handlers[cmd.Name]
 	if !ok {
 		return ErrInvalidCmd
 	}
+	if regCmd.expectedArgs != len(cmd.Args) {
+		return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
+	}
 
-	return command.h(ctx, w, s, cmd)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return regCmd.h(ctx, w, s, cmd)
 }
 
 func NewCommand(args ...string) (Command, error) {
@@ -74,19 +81,6 @@ func NewCommand(args ...string) (Command, error) {
 
 func NewRegistry() *Registry {
 	return &Registry{Handlers: map[string]RegisteredCommand{}}
-}
-
-func WithExpectArgs(r *Registry, next handler) handler {
-	return func(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-		regCmd, ok := r.Handlers[cmd.Name]
-		if !ok {
-			return ErrInvalidCmd
-		}
-		if len(cmd.Args) != regCmd.expectedArgs {
-			return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
-		}
-		return next(ctx, w, s, cmd)
-	}
 }
 
 func WithLoggedIn(next func(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error) handler {
@@ -110,9 +104,6 @@ func IsValidUrl(u string) error {
 }
 
 func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	userArgs := database.CreateUserParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
@@ -130,10 +121,6 @@ func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) er
 }
 
 func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	user, err := s.Db.GetUserByName(ctx, strings.ToLower(cmd.Args[0]))
 
 	if err != nil {
@@ -149,9 +136,6 @@ func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	users, err := s.Db.GetUsers(ctx)
 	if err != nil {
 		return err
@@ -174,9 +158,6 @@ func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) er
 }
 
 func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	if err := s.Db.ResetUsers(ctx); err != nil {
 		return err
 	}
@@ -191,9 +172,6 @@ func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	feedUrl := "https://www.wagslane.dev/index.xml"
 
 	rssFeed, err := rss.FetchFeed(s.Client, ctx, feedUrl)
@@ -208,9 +186,6 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 }
 
 func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	if err := IsValidUrl(cmd.Args[1]); err != nil {
 		return fmt.Errorf("invalid URL: %v", cmd.Args[0])
 	}
@@ -248,9 +223,6 @@ func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, use
 }
 
 func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	feeds, err := s.Db.GetFeeds(ctx)
 
 	if err != nil {
@@ -274,9 +246,6 @@ func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
 	if err != nil {
 		return err
@@ -300,9 +269,6 @@ func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user
 }
 
 func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	feeds, err := s.Db.GetFeedFollowsForUser(ctx, user.ID)
 	if err != nil {
 		return nil
@@ -321,9 +287,6 @@ func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, u
 }
 
 func HandlerUnfollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
 	if err != nil {
 		return err
