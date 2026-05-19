@@ -39,25 +39,41 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	state := &State{
-		Db:     database.New(db),
-		Config: &cfg,
-		Client: rss.NewClient(30 * time.Second),
-	}
+	state := &State{Db: database.New(db), Config: &cfg, Client: rss.NewClient(30 * time.Second)}
 
 	w := io.Writer(os.Stdout)
 
-	handlers := NewRegistry()
-	handlers.Register("login", WithExpectArgs(HandlerLogin, 1))
-	handlers.Register("register", WithExpectArgs(HandlerRegister, 1))
-	handlers.Register("reset", WithExpectArgs(HandlerReset, 0))
-	handlers.Register("users", WithExpectArgs(HandlerGetUsers, 0))
-	handlers.Register("agg", WithExpectArgs(HandlerAgg, 1))
-	handlers.Register("addfeed", WithExpectArgs(WithLoggedIn(HandlerAddFeed), 2))
-	handlers.Register("feeds", WithExpectArgs(HandlerFeeds, 0))
-	handlers.Register("follow", WithExpectArgs(WithLoggedIn(HandlerFollow), 1))
-	handlers.Register("following", WithExpectArgs(WithLoggedIn(HandlerFollowing), 0))
-	handlers.Register("unfollow", WithExpectArgs(WithLoggedIn(HandlerUnfollow), 1))
+	r := NewRegistry()
+
+	r.Register("login", "login using your username", "login <username>", 1,
+		WithExpectArgs(r, HandlerLogin))
+
+	r.Register("register", "register a username that doesn't exist", "register <username>", 1,
+		WithExpectArgs(r, HandlerRegister))
+
+	r.Register("reset", "reset all sql tables", "reset", 0,
+		WithExpectArgs(r, HandlerReset))
+
+	r.Register("users", "get all registered users", "users", 0,
+		WithExpectArgs(r, HandlerGetUsers))
+
+	r.Register("agg", "aggregate followed feeds", "agg", 0,
+		WithExpectArgs(r, HandlerAgg))
+
+	r.Register("addfeed", "add and follow a feed", "addfeed <feed name> <feed url>", 2,
+		WithExpectArgs(r, WithLoggedIn(HandlerAddFeed)))
+
+	r.Register("feeds", "return all added feeds", "feeds", 0,
+		WithExpectArgs(r, HandlerFeeds))
+
+	r.Register("follow", "follow a feed added by another user", "follow <feed url>", 1,
+		WithExpectArgs(r, WithLoggedIn(HandlerFollow)))
+
+	r.Register("following", "return all feeds you are following", "following>", 0,
+		WithExpectArgs(r, WithLoggedIn(HandlerFollowing)))
+
+	r.Register("unfollow", "unfollow a feed", "unfollow <feed url>", 1,
+		WithExpectArgs(r, WithLoggedIn(HandlerUnfollow)))
 
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {
@@ -65,7 +81,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := handlers.Run(ctx, w, state, cmd); err != nil {
+	if err := r.Run(ctx, w, state, cmd); err != nil {
 		fmt.Fprintf(w, "Error: %v\n", err)
 		os.Exit(1)
 	}

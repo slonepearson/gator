@@ -15,8 +15,8 @@ import (
 )
 
 var ErrInvalidCmd = errors.New("invalid command")
-var ErrNotEnoughArgs = errors.New("not enough argument provided")
-var ErrTooManyArgs = errors.New("too many argument provided")
+var ErrNotEnoughArgs = errors.New("not enough arguments provided")
+var ErrTooManyArgs = errors.New("too many arguments provided")
 var ErrAlreadyRegistered = errors.New("username already registered")
 var ErrUserNotRegistered = errors.New("user is not registered, use 'register <username>'")
 
@@ -25,14 +25,26 @@ type Command struct {
 	Args []string
 }
 
+type RegisteredCommand struct {
+	h            handler
+	description  string
+	usage        string
+	expectedArgs int
+}
+
 type handler func(ctx context.Context, w io.Writer, s *State, cmd Command) error
 
 type Registry struct {
-	Handlers map[string]handler
+	Handlers map[string]RegisteredCommand
 }
 
-func (c *Registry) Register(name string, handler handler) {
-	c.Handlers[name] = handler
+func (c *Registry) Register(name string, desc string, usage string, expectedArgs int, handler handler) {
+	c.Handlers[name] = RegisteredCommand{
+		h:            handler,
+		description:  desc,
+		usage:        usage,
+		expectedArgs: expectedArgs,
+	}
 }
 
 func (c *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) error {
@@ -41,15 +53,9 @@ func (c *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) 
 		return ErrInvalidCmd
 	}
 
-	return command(ctx, w, s, cmd)
+	return command.h(ctx, w, s, cmd)
 }
 
-/*
-This function returns a new Command struct or an error.
-The first provided argument will be considered the commands name.
-Every argument after that will be considered the command's arguments.
-An ErrNotEnoughArgs error will be returned if a command name is not provided.
-*/
 func NewCommand(args ...string) (Command, error) {
 	if len(args) < 1 {
 		return Command{}, ErrNotEnoughArgs
@@ -66,17 +72,18 @@ func NewCommand(args ...string) (Command, error) {
 	return cmd, nil
 }
 
-func NewRegistry() Registry {
-	return Registry{Handlers: map[string]handler{}}
+func NewRegistry() *Registry {
+	return &Registry{Handlers: map[string]RegisteredCommand{}}
 }
 
-func WithExpectArgs(next handler, expectedArgument int) handler {
+func WithExpectArgs(r *Registry, next handler) handler {
 	return func(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-		if len(cmd.Args) > expectedArgument {
-			return ErrTooManyArgs
+		regCmd, ok := r.Handlers[cmd.Name]
+		if !ok {
+			return ErrInvalidCmd
 		}
-		if len(cmd.Args) < expectedArgument {
-			return ErrNotEnoughArgs
+		if len(cmd.Args) != regCmd.expectedArgs {
+			return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
 		}
 		return next(ctx, w, s, cmd)
 	}
@@ -92,6 +99,14 @@ func WithLoggedIn(next func(ctx context.Context, w io.Writer, s *State, cmd Comm
 		}
 		return next(ctx, w, s, cmd, user)
 	}
+}
+
+func IsValidUrl(u string) error {
+	_, err := url.ParseRequestURI(u)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) error {
@@ -196,9 +211,8 @@ func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, use
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := url.ParseRequestURI(cmd.Args[1])
-	if err != nil {
-		return fmt.Errorf("invalid URL: %v", cmd.Args[1])
+	if err := IsValidUrl(cmd.Args[1]); err != nil {
+		return fmt.Errorf("invalid URL: %v", cmd.Args[0])
 	}
 
 	feedParams := database.AddFeedParams{
@@ -307,11 +321,6 @@ func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, u
 }
 
 func HandlerUnfollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
-	_, err := url.ParseRequestURI(cmd.Args[0])
-	if err != nil {
-		return fmt.Errorf("invalid URL: %v", cmd.Args[0])
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
