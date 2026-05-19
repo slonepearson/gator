@@ -17,9 +17,11 @@ type Querier interface {
 	GetFeedByUrl(ctx context.Context, url string) (Feed, error)
 	GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) ([]GetFeedFollowsForUserRow, error)
 	GetFeeds(ctx context.Context) ([]Feed, error)
+	GetNextFeedToFetch(ctx context.Context) (Feed, error)
 	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByName(ctx context.Context, name string) (User, error)
 	GetUsers(ctx context.Context) ([]User, error)
+	MarkFeedFetched(ctx context.Context, arg MarkFeedFetchedParams) error
 	RemoveFeedFollow(ctx context.Context, arg RemoveFeedFollowParams) error
 	ResetFeeds(ctx context.Context) error
 	ResetUsers(ctx context.Context) error

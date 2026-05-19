@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"gator/internal/database"
@@ -26,7 +27,7 @@ type Command struct {
 }
 
 type RegisteredCommand struct {
-	h            handler
+	handler      handler
 	description  string
 	usage        string
 	expectedArgs int
@@ -40,7 +41,7 @@ type Registry struct {
 
 func (r *Registry) Register(name string, desc string, usage string, expectedArgs int, handler handler) {
 	r.Handlers[name] = RegisteredCommand{
-		h:            handler,
+		handler:      handler,
 		description:  desc,
 		usage:        usage,
 		expectedArgs: expectedArgs,
@@ -48,7 +49,6 @@ func (r *Registry) Register(name string, desc string, usage string, expectedArgs
 }
 
 func (r *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-
 	regCmd, ok := r.Handlers[cmd.Name]
 	if !ok {
 		return ErrInvalidCmd
@@ -57,10 +57,7 @@ func (r *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) 
 		return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	return regCmd.h(ctx, w, s, cmd)
+	return regCmd.handler(ctx, w, s, cmd)
 }
 
 func NewCommand(args ...string) (Command, error) {
@@ -104,6 +101,9 @@ func IsValidUrl(u string) error {
 }
 
 func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	userArgs := database.CreateUserParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
@@ -121,6 +121,9 @@ func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) er
 }
 
 func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	user, err := s.Db.GetUserByName(ctx, strings.ToLower(cmd.Args[0]))
 
 	if err != nil {
@@ -136,6 +139,9 @@ func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	users, err := s.Db.GetUsers(ctx)
 	if err != nil {
 		return err
@@ -158,6 +164,9 @@ func HandlerGetUsers(ctx context.Context, w io.Writer, s *State, cmd Command) er
 }
 
 func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := s.Db.ResetUsers(ctx); err != nil {
 		return err
 	}
@@ -172,20 +181,39 @@ func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	feedUrl := "https://www.wagslane.dev/index.xml"
-
-	rssFeed, err := rss.FetchFeed(s.Client, ctx, feedUrl)
-
+	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
 	if err != nil {
 		return err
 	}
 
-	rssFeed.UnescapeRssFeed()
-	fmt.Fprint(w, rssFeed)
-	return nil
+	if timeBetweenReqs.Seconds() < 10 {
+		return fmt.Errorf("time between requests has to be atleast 10 seconds")
+	}
+
+	ticker := time.NewTicker(timeBetweenReqs)
+	defer ticker.Stop()
+
+	fmt.Fprintf(w, "Printing feeds every %v...\n\n", timeBetweenReqs)
+	if err := scrapeFeeds(ctx, w, s); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if err := scrapeFeeds(ctx, w, s); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	if err := IsValidUrl(cmd.Args[1]); err != nil {
 		return fmt.Errorf("invalid URL: %v", cmd.Args[0])
 	}
@@ -223,6 +251,9 @@ func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, use
 }
 
 func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	feeds, err := s.Db.GetFeeds(ctx)
 
 	if err != nil {
@@ -246,6 +277,9 @@ func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error
 }
 
 func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
 	if err != nil {
 		return err
@@ -269,6 +303,9 @@ func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user
 }
 
 func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	feeds, err := s.Db.GetFeedFollowsForUser(ctx, user.ID)
 	if err != nil {
 		return nil
@@ -287,6 +324,9 @@ func HandlerFollowing(ctx context.Context, w io.Writer, s *State, cmd Command, u
 }
 
 func HandlerUnfollow(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	feed, err := s.Db.GetFeedByUrl(ctx, cmd.Args[0])
 	if err != nil {
 		return err
@@ -303,5 +343,44 @@ func HandlerUnfollow(ctx context.Context, w io.Writer, s *State, cmd Command, us
 
 	fmt.Fprintf(w, "%v unfollowed %v", user.Name, feed.Name)
 
+	return nil
+}
+
+func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	feedMeta, err := s.Db.GetNextFeedToFetch(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	now := sql.NullTime{
+		Time:  time.Now(),
+		Valid: true,
+	}
+
+	markFeedFetchedParmas := database.MarkFeedFetchedParams{
+		ID:            feedMeta.ID,
+		LastFetchedAt: now,
+		UpdatedAt:     time.Now(),
+	}
+	if err := s.Db.MarkFeedFetched(ctx, markFeedFetchedParmas); err != nil {
+		return err
+	}
+
+	feed, err := rss.FetchFeed(s.Client, ctx, feedMeta.Url)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "%v:\n", feedMeta.Name)
+	feed.UnescapeRssFeed()
+	for i, item := range feed.Channel.Item {
+		if item.Title != "" {
+			fmt.Fprintf(w, "%d. %v\n", i+1, item.Title)
+		}
+	}
+	fmt.Println()
 	return nil
 }

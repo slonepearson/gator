@@ -7,7 +7,6 @@ import (
 	"html"
 	"io"
 	"net/http"
-	"time"
 )
 
 const userAgent = "gator"
@@ -32,9 +31,9 @@ type RSSItem struct {
 	PubDate     string `xml:"pubDate"`
 }
 
-func NewClient(t time.Duration) *HttpClient {
+func NewClient() *HttpClient {
 	return &HttpClient{
-		Client: &http.Client{Timeout: t},
+		Client: &http.Client{},
 	}
 }
 
@@ -42,8 +41,8 @@ func (c *HttpClient) get(ctx context.Context, url string) (io.ReadCloser, error)
 	if url == "" {
 		return nil, fmt.Errorf("expected feedUrl got: %s", url)
 	}
-	ctx, cancle := context.WithTimeout(ctx, 2*time.Second)
-	defer cancle()
+	//ctx, cancle := context.WithTimeout(ctx, 2*time.Second)
+	//defer cancle()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("problem creating request: %w", err)
@@ -73,10 +72,10 @@ func (r *RSSFeed) UnescapeRssFeed() {
 	}
 }
 
-func FetchFeed(client *HttpClient, ctx context.Context, url string) (RSSFeed, error) {
+func FetchFeed(client *HttpClient, ctx context.Context, url string) (*RSSFeed, error) {
 	body, err := client.get(ctx, url)
 	if err != nil {
-		return RSSFeed{}, err
+		return nil, err
 	}
 	defer body.Close()
 	var data RSSFeed
@@ -84,8 +83,8 @@ func FetchFeed(client *HttpClient, ctx context.Context, url string) (RSSFeed, er
 	decoder := xml.NewDecoder(body)
 
 	if err := decoder.Decode(&data); err != nil {
-		return RSSFeed{}, err
+		return nil, err
 	}
 
-	return data, nil
+	return &data, nil
 }
