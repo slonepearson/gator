@@ -10,7 +10,7 @@ Before installing and running Gator, ensure you have the following software inst
 You can install the Gator CLI globally using the standard Go installation command:
 
 ```
-go install ://github.com
+go install github.com/slonepearson/gator@latest
 ```
 
 Note: Make sure your GOPATH/bin directory is added to your system's PATH environment variable to run the gator command from anywhere.
