@@ -2,11 +2,13 @@ package rss
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"html"
 	"io"
 	"net/http"
+	"time"
 )
 
 const userAgent = "gator"
@@ -37,30 +39,35 @@ func NewClient() *HttpClient {
 	}
 }
 
-func (c *HttpClient) get(ctx context.Context, url string) (io.ReadCloser, error) {
+func (c *HttpClient) get(ctx context.Context, modifiedSince sql.NullTime, url string) (io.ReadCloser, string, error) {
 	if url == "" {
-		return nil, fmt.Errorf("expected feedUrl got: %s", url)
+		return nil, "", fmt.Errorf("expected feedUrl got: %s", url)
 	}
-	//ctx, cancle := context.WithTimeout(ctx, 2*time.Second)
-	//defer cancle()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("problem creating request: %w", err)
+		return nil, "", fmt.Errorf("problem creating request: %w", err)
 	}
 	req.Header.Set("User-Agent", userAgent)
+	if modifiedSince.Valid {
+		req.Header.Set("Last-Modified", modifiedSince.Time.Format(time.RFC1123))
+	}
 
 	res, err := c.Client.Do(req)
-
 	if err != nil {
-		return nil, fmt.Errorf("problem with request: %w", err)
+		return nil, "", fmt.Errorf("problem with request: %w", err)
 	}
-
+	if res.StatusCode < 400 && res.StatusCode > 299 {
+		return nil, "", fmt.Errorf("Redirected: %v", res.Status)
+	}
 	if res.StatusCode > 299 || res.StatusCode < 200 {
 		res.Body.Close()
-		return nil, fmt.Errorf("non ok GET request: %v", res.Status)
+		return nil, "", fmt.Errorf("non ok GET request: %v", res.Status)
 	}
 
-	return res.Body, nil
+	lastModified := res.Header.Get("Last-Modified")
+
+	return res.Body, lastModified, nil
 }
 
 func (r *RSSFeed) UnescapeRssFeed() {
@@ -72,10 +79,10 @@ func (r *RSSFeed) UnescapeRssFeed() {
 	}
 }
 
-func FetchFeed(client *HttpClient, ctx context.Context, url string) (*RSSFeed, error) {
-	body, err := client.get(ctx, url)
+func FetchFeed(ctx context.Context, client *HttpClient, modifiedSince sql.NullTime, url string) (*RSSFeed, string, error) {
+	body, lastModified, err := client.get(ctx, modifiedSince, url)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer body.Close()
 	var data RSSFeed
@@ -83,8 +90,8 @@ func FetchFeed(client *HttpClient, ctx context.Context, url string) (*RSSFeed, e
 	decoder := xml.NewDecoder(body)
 
 	if err := decoder.Decode(&data); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return &data, nil
+	return &data, lastModified, nil
 }

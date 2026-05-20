@@ -13,11 +13,13 @@ import (
 type Querier interface {
 	AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error)
 	AddFeedFollow(ctx context.Context, arg AddFeedFollowParams) (AddFeedFollowRow, error)
+	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetFeedByUrl(ctx context.Context, url string) (Feed, error)
 	GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) ([]GetFeedFollowsForUserRow, error)
 	GetFeeds(ctx context.Context) ([]Feed, error)
 	GetNextFeedToFetch(ctx context.Context) (Feed, error)
+	GetPostForUser(ctx context.Context, arg GetPostForUserParams) ([]Post, error)
 	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByName(ctx context.Context, name string) (User, error)
 	GetUsers(ctx context.Context) ([]User, error)

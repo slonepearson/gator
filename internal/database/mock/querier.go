@@ -72,6 +72,21 @@ func (mr *MockQuerierMockRecorder) AddFeedFollow(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFeedFollow", reflect.TypeOf((*MockQuerier)(nil).AddFeedFollow), ctx, arg)
 }
 
+// CreatePost mocks base method.
+func (m *MockQuerier) CreatePost(ctx context.Context, arg database.CreatePostParams) (database.Post, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreatePost", ctx, arg)
+	ret0, _ := ret[0].(database.Post)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreatePost indicates an expected call of CreatePost.
+func (mr *MockQuerierMockRecorder) CreatePost(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePost", reflect.TypeOf((*MockQuerier)(nil).CreatePost), ctx, arg)
+}
+
 // CreateUser mocks base method.
 func (m *MockQuerier) CreateUser(ctx context.Context, arg database.CreateUserParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -145,6 +160,21 @@ func (m *MockQuerier) GetNextFeedToFetch(ctx context.Context) (database.Feed, er
 func (mr *MockQuerierMockRecorder) GetNextFeedToFetch(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNextFeedToFetch", reflect.TypeOf((*MockQuerier)(nil).GetNextFeedToFetch), ctx)
+}
+
+// GetPostForUser mocks base method.
+func (m *MockQuerier) GetPostForUser(ctx context.Context, arg database.GetPostForUserParams) ([]database.Post, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPostForUser", ctx, arg)
+	ret0, _ := ret[0].([]database.Post)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPostForUser indicates an expected call of GetPostForUser.
+func (mr *MockQuerierMockRecorder) GetPostForUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPostForUser", reflect.TypeOf((*MockQuerier)(nil).GetPostForUser), ctx, arg)
 }
 
 // GetUserById mocks base method.

@@ -19,7 +19,7 @@ INSERT INTO feeds(
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, created_at, updated_at, name, url, user_id, last_fetched_at
+RETURNING id, created_at, updated_at, name, url, user_id, last_fetched_at, last_modified
 `
 
 type AddFeedParams struct {
@@ -49,12 +49,13 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		&i.Url,
 		&i.UserID,
 		&i.LastFetchedAt,
+		&i.LastModified,
 	)
 	return i, err
 }
 
 const getFeedByUrl = `-- name: GetFeedByUrl :one
-SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at
+SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at, last_modified
 FROM feeds
 WHERE url = $1
 `
@@ -70,12 +71,13 @@ func (q *Queries) GetFeedByUrl(ctx context.Context, url string) (Feed, error) {
 		&i.Url,
 		&i.UserID,
 		&i.LastFetchedAt,
+		&i.LastModified,
 	)
 	return i, err
 }
 
 const getFeeds = `-- name: GetFeeds :many
-SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at
+SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at, last_modified
 FROM feeds
 ORDER BY created_at
 `
@@ -97,6 +99,7 @@ func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
 			&i.Url,
 			&i.UserID,
 			&i.LastFetchedAt,
+			&i.LastModified,
 		); err != nil {
 			return nil, err
 		}
@@ -112,7 +115,7 @@ func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
 }
 
 const getNextFeedToFetch = `-- name: GetNextFeedToFetch :one
-SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at
+SELECT id, created_at, updated_at, name, url, user_id, last_fetched_at, last_modified
 FROM feeds
 ORDER BY last_fetched_at NULLS FIRST
 LIMIT 1
@@ -129,13 +132,14 @@ func (q *Queries) GetNextFeedToFetch(ctx context.Context) (Feed, error) {
 		&i.Url,
 		&i.UserID,
 		&i.LastFetchedAt,
+		&i.LastModified,
 	)
 	return i, err
 }
 
 const markFeedFetched = `-- name: MarkFeedFetched :exec
 UPDATE feeds
-SET last_fetched_at = $2, updated_at = $3
+SET last_fetched_at = $2, updated_at = $3, last_modified = $4
 WHERE id = $1
 `
 
@@ -143,10 +147,16 @@ type MarkFeedFetchedParams struct {
 	ID            uuid.UUID
 	LastFetchedAt sql.NullTime
 	UpdatedAt     time.Time
+	LastModified  sql.NullTime
 }
 
 func (q *Queries) MarkFeedFetched(ctx context.Context, arg MarkFeedFetchedParams) error {
-	_, err := q.db.ExecContext(ctx, markFeedFetched, arg.ID, arg.LastFetchedAt, arg.UpdatedAt)
+	_, err := q.db.ExecContext(ctx, markFeedFetched,
+		arg.ID,
+		arg.LastFetchedAt,
+		arg.UpdatedAt,
+		arg.LastModified,
+	)
 	return err
 }
 

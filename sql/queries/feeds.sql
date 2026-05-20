@@ -21,7 +21,7 @@ DELETE FROM users;
 
 -- name: MarkFeedFetched :exec
 UPDATE feeds
-SET last_fetched_at = $2, updated_at = $3
+SET last_fetched_at = $2, updated_at = $3, last_modified = $4
 WHERE id = $1;
 
 -- name: GetNextFeedToFetch :one

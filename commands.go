@@ -9,10 +9,12 @@ import (
 	"gator/internal/rss"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 var ErrInvalidCmd = errors.New("invalid command")
@@ -31,6 +33,7 @@ type RegisteredCommand struct {
 	description  string
 	usage        string
 	expectedArgs int
+	optional     bool
 }
 
 type handler func(ctx context.Context, w io.Writer, s *State, cmd Command) error
@@ -39,12 +42,13 @@ type Registry struct {
 	Handlers map[string]RegisteredCommand
 }
 
-func (r *Registry) Register(name string, desc string, usage string, expectedArgs int, handler handler) {
+func (r *Registry) Register(name string, desc string, usage string, expectedArgs int, optional bool, handler handler) {
 	r.Handlers[name] = RegisteredCommand{
 		handler:      handler,
 		description:  desc,
 		usage:        usage,
 		expectedArgs: expectedArgs,
+		optional:     optional,
 	}
 }
 
@@ -53,8 +57,13 @@ func (r *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) 
 	if !ok {
 		return ErrInvalidCmd
 	}
-	if regCmd.expectedArgs != len(cmd.Args) {
-		return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
+	if !regCmd.optional {
+		if len(cmd.Args) != regCmd.expectedArgs {
+			return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
+		}
+	}
+	if len(cmd.Args) > regCmd.expectedArgs {
+		return fmt.Errorf("invalid number of optional arguments.\nUsage: %s\n", regCmd.usage)
 	}
 
 	return regCmd.handler(ctx, w, s, cmd)
@@ -180,36 +189,6 @@ func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error
 	return nil
 }
 
-func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
-	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
-	if err != nil {
-		return err
-	}
-
-	if timeBetweenReqs.Seconds() < 10 {
-		return fmt.Errorf("time between requests has to be atleast 10 seconds")
-	}
-
-	ticker := time.NewTicker(timeBetweenReqs)
-	defer ticker.Stop()
-
-	fmt.Fprintf(w, "Printing feeds every %v...\n\n", timeBetweenReqs)
-	if err := scrapeFeeds(ctx, w, s); err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if err := scrapeFeeds(ctx, w, s); err != nil {
-				return err
-			}
-		}
-	}
-}
-
 func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -298,7 +277,7 @@ func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user
 		return err
 	}
 
-	fmt.Fprintf(w, "User %v followed the feed: %v", feedFollow.UserName, feedFollow.FeedName)
+	fmt.Fprintf(w, "User %v followed the feed: %v\n", feedFollow.UserName, feedFollow.FeedName)
 	return nil
 }
 
@@ -341,46 +320,176 @@ func HandlerUnfollow(ctx context.Context, w io.Writer, s *State, cmd Command, us
 		return err
 	}
 
-	fmt.Fprintf(w, "%v unfollowed %v", user.Name, feed.Name)
+	fmt.Fprintf(w, "%v unfollowed %v\n", user.Name, feed.Name)
 
 	return nil
 }
 
+func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
+	if err != nil {
+		return err
+	}
+
+	if timeBetweenReqs.Seconds() < 60 {
+		return fmt.Errorf("time between requests has to be atleast 60 seconds")
+	}
+
+	ticker := time.NewTicker(timeBetweenReqs)
+	defer ticker.Stop()
+
+	fmt.Fprintf(w, "Printing feeds every %v...\n", timeBetweenReqs)
+	if err := scrapeFeeds(ctx, w, s); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if err := scrapeFeeds(ctx, w, s); err != nil {
+				fmt.Fprintf(w, "%v\n", err)
+			}
+		}
+	}
+}
+
 func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
+	fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	feedMeta, err := s.Db.GetNextFeedToFetch(fetchCtx)
+	if err != nil {
+		return err
+	}
+	feed, lastModifiedStr, err := rss.FetchFeed(fetchCtx, s.Client, feedMeta.LastModified, feedMeta.Url)
+	if err != nil {
+		return err
+	}
+	feed.UnescapeRssFeed()
+
+	now := time.Now()
+	sqlNow := sql.NullTime{Time: now, Valid: true}
+	lastModified, err := parseDate(lastModifiedStr)
+	sqlLastModified := sql.NullTime{Time: lastModified, Valid: err == nil}
+	markFeedFetchedParmas := database.MarkFeedFetchedParams{
+		ID:            feedMeta.ID,
+		LastFetchedAt: sqlNow,
+		UpdatedAt:     sqlNow.Time,
+		LastModified:  sqlLastModified,
+	}
+	if err := s.Db.MarkFeedFetched(fetchCtx, markFeedFetchedParmas); err != nil {
+		return err
+	}
+	cancel()
+	anythingNew := false
+	for _, post := range feed.Channel.Item {
+		message, err := savePost(ctx, s, feedMeta.ID, post, now)
+		if err != nil {
+			return err
+		} else if message != "" {
+			fmt.Fprintf(w, "%s\n", message)
+			anythingNew = true
+		}
+	}
+	if !anythingNew {
+		fmt.Fprintf(w, "No new posts from feed.\n")
+	}
+	return nil
+}
+
+func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem, now time.Time) (string, error) {
+	postCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	title := sql.NullString{String: post.Title, Valid: false}
+	if post.Title != "" {
+		title.Valid = true
+	}
+
+	description := sql.NullString{String: post.Description, Valid: false}
+	if post.Description != "" {
+		description.Valid = true
+	}
+
+	published_at, err := parseDate(post.PubDate)
+	if err != nil {
+		return "", fmt.Errorf("%v\n", err)
+	}
+
+	postParams := database.CreatePostParams{
+		ID:          uuid.New(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		Title:       title,
+		Url:         post.Link,
+		Description: description,
+		PublishedAt: published_at,
+		FeedID:      feedId,
+	}
+
+	_, err = s.Db.CreatePost(postCtx, postParams)
+	if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" {
+		return "", nil
+	} else if err != nil {
+		return "", fmt.Errorf("%v\n", err)
+	}
+	return "Post successfully added", nil
+}
+
+func HandlerBrowse(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+
+	var limit int32
+	if len(cmd.Args) != 0 {
+		i, err := strconv.ParseInt(cmd.Args[0], 10, 32)
+		if err != nil {
+			return err
+		}
+		limit = int32(i)
+	} else {
+		limit = 2
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	feedMeta, err := s.Db.GetNextFeedToFetch(ctx)
+	getPostParams := database.GetPostForUserParams{
+		UserID: user.ID,
+		Limit:  limit,
+	}
 
+	userPosts, err := s.Db.GetPostForUser(ctx, getPostParams)
 	if err != nil {
 		return err
 	}
 
-	now := sql.NullTime{
-		Time:  time.Now(),
-		Valid: true,
+	for _, post := range userPosts {
+		fmt.Fprintf(w, "%v\n", post.Title.String)
+		fmt.Fprintf(w, "%v\n", post.Url)
+		fmt.Fprintf(w, "Published: %v\n", post.PublishedAt.Format(time.RFC3339))
+		fmt.Fprintf(w, "%v\n", post.Description.String)
+		fmt.Fprintf(w, "---\n\n")
 	}
 
-	markFeedFetchedParmas := database.MarkFeedFetchedParams{
-		ID:            feedMeta.ID,
-		LastFetchedAt: now,
-		UpdatedAt:     time.Now(),
-	}
-	if err := s.Db.MarkFeedFetched(ctx, markFeedFetchedParmas); err != nil {
-		return err
+	return nil
+}
+
+func parseDate(dateStr string) (time.Time, error) {
+	dateStr = strings.TrimSpace(dateStr)
+
+	layouts := []string{
+		time.RFC822,
+		time.RFC3339,
+		time.RFC1123,
+		time.RFC1123Z,
+		"2006-01-02 15:04:05",
 	}
 
-	feed, err := rss.FetchFeed(s.Client, ctx, feedMeta.Url)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(w, "%v:\n", feedMeta.Name)
-	feed.UnescapeRssFeed()
-	for i, item := range feed.Channel.Item {
-		if item.Title != "" {
-			fmt.Fprintf(w, "%d. %v\n", i+1, item.Title)
+	for _, layout := range layouts {
+		timeFormat, err := time.Parse(layout, dateStr)
+		if err == nil {
+			return timeFormat, nil
 		}
 	}
-	fmt.Println()
-	return nil
+	return time.Time{}, fmt.Errorf("Error: parsing post published date: %v", dateStr)
 }

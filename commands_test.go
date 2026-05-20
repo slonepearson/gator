@@ -59,8 +59,8 @@ func TestNewCommand(t *testing.T) {
 
 func TestNonRegisteredCommands(t *testing.T) {
 	handlers := NewRegistry()
-	handlers.Register("login", "login a user", "login <username>", 1, HandlerLogin)
-	handlers.Register("register", "register a user", "register <username>", 1, HandlerRegister)
+	handlers.Register("login", "login a user", "login <username>", 1, false, HandlerLogin)
+	handlers.Register("register", "register a user", "register <username>", 1, false, HandlerRegister)
 
 	cases := []struct {
 		name        string
@@ -98,7 +98,7 @@ func TestNonRegisteredCommands(t *testing.T) {
 
 func TestHandlerLogin(t *testing.T) {
 	handlers := NewRegistry()
-	handlers.Register("login", "login a user", "login <username>", 1, HandlerLogin)
+	handlers.Register("login", "login a user", "login <username>", 1, false, HandlerLogin)
 
 	cases := []struct {
 		input          []string
@@ -180,7 +180,7 @@ func TestHandlerLogin(t *testing.T) {
 
 func TestHandlerRegister(t *testing.T) {
 	handlers := NewRegistry()
-	handlers.Register("register", "register a user", "register <username>", 1, HandlerRegister)
+	handlers.Register("register", "register a user", "register <username>", 1, false, HandlerRegister)
 
 	cases := []struct {
 		input       []string
