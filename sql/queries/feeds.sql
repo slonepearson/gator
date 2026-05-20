@@ -17,7 +17,7 @@ FROM feeds
 WHERE url = $1;
 
 -- name: ResetFeeds :exec
-DELETE FROM users;
+DELETE FROM feeds;
 
 -- name: MarkFeedFetched :exec
 UPDATE feeds
@@ -29,3 +29,7 @@ SELECT *
 FROM feeds
 ORDER BY last_fetched_at NULLS FIRST
 LIMIT 1;
+
+-- name: RemoveFeed :exec
+DELETE FROM feeds
+WHERE url = $1;

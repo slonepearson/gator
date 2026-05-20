@@ -22,6 +22,7 @@ var ErrNotEnoughArgs = errors.New("not enough arguments provided")
 var ErrTooManyArgs = errors.New("too many arguments provided")
 var ErrAlreadyRegistered = errors.New("username already registered")
 var ErrUserNotRegistered = errors.New("user is not registered, use 'register <username>'")
+var ErrPostAlreadyAdded = errors.New("Post already added from feed")
 
 type Command struct {
 	Name string
@@ -331,16 +332,16 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 		return err
 	}
 
-	if timeBetweenReqs.Seconds() < 60 {
+	if timeBetweenReqs.Seconds() < 20 {
 		return fmt.Errorf("time between requests has to be atleast 60 seconds")
 	}
 
 	ticker := time.NewTicker(timeBetweenReqs)
 	defer ticker.Stop()
 
-	fmt.Fprintf(w, "Printing feeds every %v...\n", timeBetweenReqs)
+	fmt.Fprintf(w, "Scraping posts every %v...\n", timeBetweenReqs)
 	if err := scrapeFeeds(ctx, w, s); err != nil {
-		return err
+		fmt.Fprintf(w, "%v\n", err)
 	}
 
 	for {
@@ -356,7 +357,7 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 }
 
 func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
-	fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
 	feedMeta, err := s.Db.GetNextFeedToFetch(fetchCtx)
@@ -383,24 +384,28 @@ func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
 		return err
 	}
 	cancel()
-	anythingNew := false
+	newPosts := 0
 	for _, post := range feed.Channel.Item {
-		message, err := savePost(ctx, s, feedMeta.ID, post, now)
+		err := savePost(ctx, s, feedMeta.ID, post, now)
 		if err != nil {
-			return err
-		} else if message != "" {
-			fmt.Fprintf(w, "%s\n", message)
-			anythingNew = true
+			if errors.Is(err, ErrPostAlreadyAdded) {
+				continue
+			}
+			fmt.Fprintf(w, "%v\n", err)
 		}
+		newPosts++
 	}
-	if !anythingNew {
+
+	if newPosts == 0 {
 		fmt.Fprintf(w, "No new posts from feed.\n")
+	} else {
+		fmt.Fprintf(w, "%d posts added from feed.\n", newPosts)
 	}
 	return nil
 }
 
-func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem, now time.Time) (string, error) {
-	postCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem, now time.Time) error {
+	postCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	title := sql.NullString{String: post.Title, Valid: false}
 	if post.Title != "" {
@@ -414,7 +419,7 @@ func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem,
 
 	published_at, err := parseDate(post.PubDate)
 	if err != nil {
-		return "", fmt.Errorf("%v\n", err)
+		return err
 	}
 
 	postParams := database.CreatePostParams{
@@ -430,11 +435,11 @@ func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem,
 
 	_, err = s.Db.CreatePost(postCtx, postParams)
 	if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" {
-		return "", nil
+		return ErrPostAlreadyAdded
 	} else if err != nil {
-		return "", fmt.Errorf("%v\n", err)
+		return err
 	}
-	return "Post successfully added", nil
+	return nil
 }
 
 func HandlerBrowse(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
@@ -471,6 +476,16 @@ func HandlerBrowse(ctx context.Context, w io.Writer, s *State, cmd Command, user
 		fmt.Fprintf(w, "---\n\n")
 	}
 
+	return nil
+}
+
+func HandlerRemoveFeed(ctx context.Context, w io.Writer, s *State, cmd Command) error {
+	ctx, cencel := context.WithTimeout(ctx, 5*time.Second)
+	defer cencel()
+
+	if err := s.Db.RemoveFeed(ctx, cmd.Args[0]); err != nil {
+		return err
+	}
 	return nil
 }
 

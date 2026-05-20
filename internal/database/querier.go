@@ -24,6 +24,7 @@ type Querier interface {
 	GetUserByName(ctx context.Context, name string) (User, error)
 	GetUsers(ctx context.Context) ([]User, error)
 	MarkFeedFetched(ctx context.Context, arg MarkFeedFetchedParams) error
+	RemoveFeed(ctx context.Context, url string) error
 	RemoveFeedFollow(ctx context.Context, arg RemoveFeedFollowParams) error
 	ResetFeeds(ctx context.Context) error
 	ResetUsers(ctx context.Context) error

@@ -236,6 +236,20 @@ func (mr *MockQuerierMockRecorder) MarkFeedFetched(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkFeedFetched", reflect.TypeOf((*MockQuerier)(nil).MarkFeedFetched), ctx, arg)
 }
 
+// RemoveFeed mocks base method.
+func (m *MockQuerier) RemoveFeed(ctx context.Context, url string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveFeed", ctx, url)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveFeed indicates an expected call of RemoveFeed.
+func (mr *MockQuerierMockRecorder) RemoveFeed(ctx, url any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFeed", reflect.TypeOf((*MockQuerier)(nil).RemoveFeed), ctx, url)
+}
+
 // RemoveFeedFollow mocks base method.
 func (m *MockQuerier) RemoveFeedFollow(ctx context.Context, arg database.RemoveFeedFollowParams) error {
 	m.ctrl.T.Helper()

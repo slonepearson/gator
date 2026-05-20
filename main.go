@@ -51,6 +51,8 @@ func main() {
 	r.Register("following", "return all feeds you are following", "following>", 0, false, WithLoggedIn(HandlerFollowing))
 	r.Register("unfollow", "unfollow a feed", "unfollow <feed url>", 1, false, WithLoggedIn(HandlerUnfollow))
 	r.Register("browse", "browse latest published posts", "browse <optional limit>", 1, true, WithLoggedIn(HandlerBrowse))
+	r.Register("removefeed", "remove an added feed", "removefeed <feed url>", 1, false, HandlerRemoveFeed)
+
 	cmd, err := NewCommand(os.Args[1:]...) // indexed by one to exclude the program's name.
 	if err != nil {
 		fmt.Fprintf(w, "Error: %v\n", err)

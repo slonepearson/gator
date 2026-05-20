@@ -160,8 +160,18 @@ func (q *Queries) MarkFeedFetched(ctx context.Context, arg MarkFeedFetchedParams
 	return err
 }
 
+const removeFeed = `-- name: RemoveFeed :exec
+DELETE FROM feeds
+WHERE url = $1
+`
+
+func (q *Queries) RemoveFeed(ctx context.Context, url string) error {
+	_, err := q.db.ExecContext(ctx, removeFeed, url)
+	return err
+}
+
 const resetFeeds = `-- name: ResetFeeds :exec
-DELETE FROM users
+DELETE FROM feeds
 `
 
 func (q *Queries) ResetFeeds(ctx context.Context) error {
