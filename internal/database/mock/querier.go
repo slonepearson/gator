@@ -11,8 +11,9 @@ package mockdb
 
 import (
 	context "context"
-	database "gator/internal/database"
 	reflect "reflect"
+
+	database "github.com/slonepearson/gator/internal/database"
 
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"

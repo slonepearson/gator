@@ -5,13 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gator/internal/config"
-	"gator/internal/database"
-	mockdb "gator/internal/database/mock"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	mockdb "github.com/slonepearson/gator/internal/database/mock"
+
+	"github.com/slonepearson/gator/internal/database"
+
+	"github.com/slonepearson/gator/internal/config"
 
 	"go.uber.org/mock/gomock"
 )

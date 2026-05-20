@@ -5,13 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"gator/internal/database"
-	"gator/internal/rss"
 	"io"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/slonepearson/gator/internal/rss"
+
+	"github.com/slonepearson/gator/internal/database"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"

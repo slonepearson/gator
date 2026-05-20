@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"gator/internal/config"
-	"gator/internal/database"
-	"gator/internal/rss"
 	"io"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/slonepearson/gator/internal/config"
+	"github.com/slonepearson/gator/internal/database"
+	"github.com/slonepearson/gator/internal/rss"
 
 	_ "github.com/lib/pq"
 )
