@@ -24,7 +24,11 @@ Gator relies on a JSON configuration file to know which database to connect to a
 ```json
 {
   "db_url": "postgres://username:password@localhost:5432/gator_db?sslmode=disable",
-  "current_user_name": "" 
+  "current_user_name": "",
+  "last_read_top": "",
+  "last_read_top_uuid": "",
+  "last_read_bottom": "",
+  "last_read_bottom_uuid": "",
 }
 ```
 
@@ -54,11 +58,24 @@ gator addfeed "Tech News" "https://example.com"
 ```
 gator feeds
 ```
-* Aggregate posts from feeds
+* Aggregate posts from feeds:
+Has to be atlease 1 minute
 ```
 gator agg <time between requests>
 ```
-* Browse the latest collected posts
+* Browse through saved posts:
 ```
-gator browse <optional_limit>
+gator browse 
+```
+To browse the next latest posts
+```
+gator browse --next
+```
+To browse the previous viewed posts
+```
+gator browse --prev
+```
+To set the number of posts you want returned
+```
+gator browse --limit <number>
 ```
