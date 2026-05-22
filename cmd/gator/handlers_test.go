@@ -1,0 +1,225 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/slonepearson/gator/internal/config"
+	"github.com/slonepearson/gator/internal/database"
+	mockdb "github.com/slonepearson/gator/internal/database/mock"
+	"go.uber.org/mock/gomock"
+)
+
+func TestNonRegisteredCommands(t *testing.T) {
+	handlers := NewRegistry()
+	handlers.LoadRegistry()
+
+	cases := []struct {
+		name        string
+		expectedErr error
+	}{
+		{
+			name:        "banana",
+			expectedErr: ErrInvalidCmd,
+		},
+		{
+			name:        "abc",
+			expectedErr: ErrInvalidCmd,
+		},
+	}
+	pCtx, stop := context.WithCancel(context.Background())
+	defer stop()
+	for i, tc := range cases {
+		t.Run(fmt.Sprintf("Test %v:", i+1), func(t *testing.T) {
+			var buf bytes.Buffer
+			ctx, cancel := context.WithTimeout(pCtx, 5*time.Second)
+			defer cancel()
+			state := State{Config: &config.Config{}}
+			cmd, err := NewCommand(tc.name)
+			if err != nil {
+				t.Fatalf("expected no error got: %v", err)
+			}
+
+			err = handlers.Run(ctx, &buf, &state, cmd)
+			if !errors.Is(err, tc.expectedErr) {
+				t.Fatalf("expected error %v, got: %v", tc.expectedErr, err)
+			}
+		})
+	}
+}
+
+func TestHandlerLogin(t *testing.T) {
+	handlers := NewRegistry()
+	handlers.Register("login", "login a user", "login <username>", 1, 1, false, HandlerLogin)
+
+	cases := []struct {
+		input          []string
+		expectedRes    string
+		expectedErr    error
+		expectedSqlErr error
+		shouldMock     bool
+	}{
+		{
+			input:       []string{"login"},
+			expectedErr: ErrNotEnoughArgs,
+		},
+		{
+			input:       []string{"login", "alice"},
+			expectedRes: "Login successful!",
+			shouldMock:  true,
+		},
+		{
+			input:          []string{"login", "alice"},
+			expectedErr:    ErrUserNotRegistered,
+			expectedSqlErr: errors.New("sql: no rows in result set"),
+			shouldMock:     true,
+		},
+		{
+			input:       []string{"login", "alice", "bob"},
+			expectedErr: ErrTooManyArgs,
+		},
+	}
+	pCtx, stop := context.WithCancel(context.Background())
+	defer stop()
+
+	for i, tc := range cases {
+		t.Run(fmt.Sprintf("Test %v", i+1), func(t *testing.T) {
+
+			cmd, err := NewCommand(tc.input...)
+			if err != nil {
+				t.Fatalf("expected no error got: %v", err)
+			}
+
+			cfg, err := config.Read()
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDB := mockdb.NewMockQuerier(ctrl)
+
+			if tc.shouldMock {
+				mockDB.EXPECT().
+					GetUserByName(gomock.Any(), cmd.Args[0]).
+					Return(database.User{Name: cmd.Args[0]}, tc.expectedSqlErr)
+			}
+
+			ctx, cancel := context.WithTimeout(pCtx, 5*time.Second)
+			defer cancel()
+			state := State{Db: mockDB, Config: &cfg}
+			var buf bytes.Buffer
+			err = handlers.Run(ctx, &buf, &state, cmd)
+
+			if tc.expectedErr != nil {
+				if err == nil {
+					t.Fatal("expected an error got <nil>")
+				}
+				if !errors.Is(err, tc.expectedErr) {
+					t.Fatalf("expected error %v, got: %v", tc.expectedErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("expected no error, got: %v", err)
+				}
+				if !strings.Contains(buf.String(), tc.expectedRes) {
+					t.Fatalf("expected output to contain: %q, got: %q", tc.expectedRes, buf.String())
+				}
+			}
+		})
+	}
+}
+
+func TestHandlerRegister(t *testing.T) {
+	handlers := NewRegistry()
+	handlers.Register("register", "register a user", "register <username>", 1, 1, false, HandlerRegister)
+
+	cases := []struct {
+		input       []string
+		expectedRes string
+		expectedErr error
+		SqlErr      error
+		shouldMock  bool
+	}{
+		{
+			input:       []string{"register"},
+			expectedErr: ErrNotEnoughArgs,
+		},
+		{
+			input:       []string{"register", "bob", "alice"},
+			expectedErr: ErrTooManyArgs,
+		},
+		{
+			input:       []string{"register", "bob"},
+			expectedRes: "bob was successfully registered",
+			shouldMock:  true,
+		},
+		{
+			input:       []string{"register", "bob"},
+			expectedErr: ErrAlreadyRegistered,
+			SqlErr:      errors.New("ERROR: duplicate key value violates unique constraint"),
+			shouldMock:  true,
+		},
+	}
+	pCtx, stop := context.WithCancel(context.Background())
+	defer stop()
+
+	for i, tc := range cases {
+		t.Run(fmt.Sprintf("Test %v", i+1), func(t *testing.T) {
+			cmd, err := NewCommand(tc.input...)
+			if err != nil {
+				t.Fatalf("expected no error got: %v", err)
+			}
+
+			cfg, err := config.Read()
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDb := mockdb.NewMockQuerier(ctrl)
+
+			if tc.shouldMock {
+				expectedUser := strings.ToLower(cmd.Args[0])
+				mockDb.EXPECT().
+					CreateUser(gomock.Any(), gomock.Cond(func(u any) bool {
+						params, ok := u.(database.CreateUserParams)
+						if !ok {
+							return false
+						}
+						return params.Name == expectedUser
+					})).
+					Return(database.User{Name: expectedUser}, tc.SqlErr)
+			}
+
+			ctx, cancel := context.WithTimeout(pCtx, 5*time.Second)
+			defer cancel()
+			var buf bytes.Buffer
+			state := State{Db: mockDb, Config: &cfg}
+			err = handlers.Run(ctx, &buf, &state, cmd)
+
+			if tc.expectedErr != nil {
+				if err == nil {
+					t.Fatal("expected an error got <nil>")
+				}
+				if !errors.Is(err, tc.expectedErr) {
+					t.Fatalf("expected error %v, got: %v", tc.expectedErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("expected no error got: %v", err)
+				}
+
+				if !strings.Contains(buf.String(), tc.expectedRes) {
+					t.Fatalf("expected output to contain: %q, got: %q", tc.expectedRes, buf.String())
+				}
+			}
+		})
+	}
+}

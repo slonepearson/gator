@@ -26,6 +26,8 @@ func main() {
 		fmt.Printf("Error: %v", err)
 	}
 	defer db.Close()
+	db.SetMaxOpenConns(25)
+	db.SetConnMaxIdleTime(25)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

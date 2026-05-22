@@ -247,7 +247,7 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 		return err
 	}
 
-	if timeBetweenReqs.Seconds() < 20 {
+	if timeBetweenReqs.Seconds() < 60 {
 		return fmt.Errorf("time between requests has to be atleast 60 seconds")
 	}
 
@@ -255,8 +255,21 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 	defer ticker.Stop()
 
 	fmt.Fprintf(w, "Scraping posts every %v...\n", timeBetweenReqs)
-	if err := scrapeFeeds(ctx, w, s); err != nil {
-		fmt.Fprintf(w, "%v\n", err)
+	fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	feeds, err := s.Db.GetFeeds(fetchCtx)
+	if err != nil {
+		return err
+	}
+	cancel()
+
+	// Trigger first manually
+	for _, feed := range feeds {
+		go func() {
+			if err := scrapeFeeds(ctx, w, s, feed); err != nil {
+				fmt.Fprintf(w, "%v\n", err)
+			}
+		}()
 	}
 
 	for {
@@ -264,33 +277,33 @@ func HandlerAgg(ctx context.Context, w io.Writer, s *State, cmd Command) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if err := scrapeFeeds(ctx, w, s); err != nil {
-				fmt.Fprintf(w, "%v\n", err)
+			for _, feed := range feeds {
+				go func() {
+					if err := scrapeFeeds(ctx, w, s, feed); err != nil {
+						fmt.Fprintf(w, "%v\n", err)
+					}
+				}()
 			}
 		}
 	}
 }
 
-func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
+func scrapeFeeds(ctx context.Context, w io.Writer, s *State, feed database.Feed) error {
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	feedMeta, err := s.Db.GetNextFeedToFetch(fetchCtx)
+	rssFeed, lastModifiedStr, err := rss.FetchFeed(fetchCtx, s.Client, feed.LastModified, feed.Url)
 	if err != nil {
 		return err
 	}
-	feed, lastModifiedStr, err := rss.FetchFeed(fetchCtx, s.Client, feedMeta.LastModified, feedMeta.Url)
-	if err != nil {
-		return err
-	}
-	feed.UnescapeRssFeed()
+	rssFeed.UnescapeRssFeed()
 
 	now := time.Now()
 	sqlNow := sql.NullTime{Time: now, Valid: true}
 	lastModified, err := ParseDate(lastModifiedStr)
 	sqlLastModified := sql.NullTime{Time: lastModified, Valid: err == nil}
 	markFeedFetchedParmas := database.MarkFeedFetchedParams{
-		ID:            feedMeta.ID,
+		ID:            feed.ID,
 		LastFetchedAt: sqlNow,
 		UpdatedAt:     sqlNow.Time,
 		LastModified:  sqlLastModified,
@@ -300,8 +313,8 @@ func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
 	}
 	cancel()
 	newPosts := 0
-	for _, post := range feed.Channel.Item {
-		err := savePost(ctx, s, feedMeta.ID, post, now)
+	for _, post := range rssFeed.Channel.Item {
+		err := savePost(ctx, s, feed.ID, post, now)
 		if err != nil {
 			if errors.Is(err, ErrPostAlreadyAdded) {
 				continue
@@ -312,9 +325,9 @@ func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
 	}
 
 	if newPosts == 0 {
-		fmt.Fprintf(w, "No new posts from %v.\n", feedMeta.Name)
+		fmt.Fprintf(w, "No new posts from %v.\n", feed.Name)
 	} else {
-		fmt.Fprintf(w, "%d new posts from %v.\n", newPosts, feedMeta.Name)
+		fmt.Fprintf(w, "%d new posts from %v.\n", newPosts, feed.Name)
 	}
 	return nil
 }
