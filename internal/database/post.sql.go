@@ -104,3 +104,124 @@ func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) 
 	}
 	return items, nil
 }
+
+const getUsersLastPosts = `-- name: GetUsersLastPosts :many
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id
+FROM posts
+INNER JOIN feeds_follows
+    ON posts.feed_id = feeds_follows.feed_id
+WHERE feeds_follows.user_id = $1
+    AND posts.published_at > $2 
+    OR (posts.published_at = $2 AND posts.id > $3)
+ORDER BY published_at ASC, posts.id ASC
+LIMIT $4
+`
+
+type GetUsersLastPostsParams struct {
+	UserID      uuid.UUID
+	PublishedAt time.Time
+	ID          uuid.UUID
+	Limit       int32
+}
+
+func (q *Queries) GetUsersLastPosts(ctx context.Context, arg GetUsersLastPostsParams) ([]Post, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersLastPosts,
+		arg.UserID,
+		arg.PublishedAt,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUsersNextPosts = `-- name: GetUsersNextPosts :many
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id
+FROM posts
+INNER JOIN feeds_follows
+    ON posts.feed_id = feeds_follows.feed_id
+WHERE feeds_follows.user_id = $1 
+    AND posts.published_at < $2 
+    OR (posts.published_at = $2 AND posts.id < $3)
+ORDER BY published_at DESC, posts.id DESC
+LIMIT $4
+`
+
+type GetUsersNextPostsParams struct {
+	UserID      uuid.UUID
+	PublishedAt time.Time
+	ID          uuid.UUID
+	Limit       int32
+}
+
+func (q *Queries) GetUsersNextPosts(ctx context.Context, arg GetUsersNextPostsParams) ([]Post, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersNextPosts,
+		arg.UserID,
+		arg.PublishedAt,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resetPosts = `-- name: ResetPosts :exec
+DELETE FROM posts
+`
+
+func (q *Queries) ResetPosts(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetPosts)
+	return err
+}

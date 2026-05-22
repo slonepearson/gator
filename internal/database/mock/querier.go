@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	database "github.com/slonepearson/gator/internal/database"
-
 	uuid "github.com/google/uuid"
+	database "github.com/slonepearson/gator/internal/database"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -223,6 +222,36 @@ func (mr *MockQuerierMockRecorder) GetUsers(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsers", reflect.TypeOf((*MockQuerier)(nil).GetUsers), ctx)
 }
 
+// GetUsersLastPosts mocks base method.
+func (m *MockQuerier) GetUsersLastPosts(ctx context.Context, arg database.GetUsersLastPostsParams) ([]database.Post, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsersLastPosts", ctx, arg)
+	ret0, _ := ret[0].([]database.Post)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsersLastPosts indicates an expected call of GetUsersLastPosts.
+func (mr *MockQuerierMockRecorder) GetUsersLastPosts(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersLastPosts", reflect.TypeOf((*MockQuerier)(nil).GetUsersLastPosts), ctx, arg)
+}
+
+// GetUsersNextPosts mocks base method.
+func (m *MockQuerier) GetUsersNextPosts(ctx context.Context, arg database.GetUsersNextPostsParams) ([]database.Post, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsersNextPosts", ctx, arg)
+	ret0, _ := ret[0].([]database.Post)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsersNextPosts indicates an expected call of GetUsersNextPosts.
+func (mr *MockQuerierMockRecorder) GetUsersNextPosts(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersNextPosts", reflect.TypeOf((*MockQuerier)(nil).GetUsersNextPosts), ctx, arg)
+}
+
 // MarkFeedFetched mocks base method.
 func (m *MockQuerier) MarkFeedFetched(ctx context.Context, arg database.MarkFeedFetchedParams) error {
 	m.ctrl.T.Helper()
@@ -277,6 +306,20 @@ func (m *MockQuerier) ResetFeeds(ctx context.Context) error {
 func (mr *MockQuerierMockRecorder) ResetFeeds(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetFeeds", reflect.TypeOf((*MockQuerier)(nil).ResetFeeds), ctx)
+}
+
+// ResetPosts mocks base method.
+func (m *MockQuerier) ResetPosts(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetPosts", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetPosts indicates an expected call of ResetPosts.
+func (mr *MockQuerierMockRecorder) ResetPosts(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetPosts", reflect.TypeOf((*MockQuerier)(nil).ResetPosts), ctx)
 }
 
 // ResetUsers mocks base method.

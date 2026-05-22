@@ -11,8 +11,12 @@ const configFileName = ".gatorconfig.json"
 const filePerm = 0644 // The owner can read and write; everyone else can only read.
 
 type Config struct {
-	DbUrl           string `json:"db_url"`
-	CurrentUserName string `json:"current_user_name"`
+	DbUrl              string `json:"db_url"`
+	CurrentUserName    string `json:"current_user_name"`
+	LastReadTop        string `json:"last_read_top"`
+	LastReadTopUuid    string `json:"last_read_top_uuid"`
+	LastReadBottom     string `json:"last_read_bottom"`
+	LastReadBottomUuid string `json:"last_read_bottom_uuid"`
 }
 
 func Read() (Config, error) {
@@ -37,6 +41,17 @@ func Read() (Config, error) {
 
 func (c Config) SetUser(user string) error {
 	c.CurrentUserName = user
+	if err := write(c); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c Config) SetLastRead(top string, bottom string, topUuid string, bottomUuid string) error {
+	c.LastReadTop = top
+	c.LastReadBottom = bottom
+	c.LastReadTopUuid = topUuid
+	c.LastReadBottomUuid = bottomUuid
 	if err := write(c); err != nil {
 		return err
 	}

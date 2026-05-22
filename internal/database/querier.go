@@ -23,10 +23,13 @@ type Querier interface {
 	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByName(ctx context.Context, name string) (User, error)
 	GetUsers(ctx context.Context) ([]User, error)
+	GetUsersLastPosts(ctx context.Context, arg GetUsersLastPostsParams) ([]Post, error)
+	GetUsersNextPosts(ctx context.Context, arg GetUsersNextPostsParams) ([]Post, error)
 	MarkFeedFetched(ctx context.Context, arg MarkFeedFetchedParams) error
 	RemoveFeed(ctx context.Context, url string) error
 	RemoveFeedFollow(ctx context.Context, arg RemoveFeedFollowParams) error
 	ResetFeeds(ctx context.Context) error
+	ResetPosts(ctx context.Context) error
 	ResetUsers(ctx context.Context) error
 }
 
