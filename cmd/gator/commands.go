@@ -33,11 +33,12 @@ type Command struct {
 }
 
 type RegisteredCommand struct {
-	handler      handlerFunc
-	description  string
-	usage        string
-	expectedArgs int
-	optional     bool
+	handler     handlerFunc
+	description string
+	usage       string
+	minArgs     int
+	maxArgs     int
+	optional    bool
 }
 
 type handlerFunc func(ctx context.Context, w io.Writer, s *State, cmd Command) error
@@ -47,29 +48,30 @@ type Registry struct {
 	Handlers map[string]RegisteredCommand
 }
 
-func (r *Registry) Register(name string, desc string, usage string, expectedArgs int, optional bool, handler handlerFunc) {
+func (r *Registry) Register(name string, desc string, usage string, minArgs int, maxArgs int, optional bool, handler handlerFunc) {
 	r.Handlers[name] = RegisteredCommand{
-		handler:      handler,
-		description:  desc,
-		usage:        usage,
-		expectedArgs: expectedArgs,
-		optional:     optional,
+		handler:     handler,
+		description: desc,
+		usage:       usage,
+		minArgs:     minArgs,
+		maxArgs:     maxArgs,
+		optional:    optional,
 	}
 }
 
 func (r *Registry) LoadRegistry() {
-	r.Register("login", "login using your username", "login <username>", 1, false, HandlerLogin)
-	r.Register("register", "register a username that doesn't exist", "register <username>", 1, false, HandlerRegister)
-	r.Register("reset", "reset all sql tables", "reset", 0, false, HandlerReset)
-	r.Register("users", "get all registered users", "users", 0, false, HandlerGetUsers)
-	r.Register("agg", "aggregate followed feeds", "agg", 1, false, HandlerAgg)
-	r.Register("addfeed", "add and follow a feed", "addfeed <feed name> <feed url>", 2, false, WithLoggedIn(HandlerAddFeed))
-	r.Register("feeds", "return all added feeds", "feeds", 0, false, HandlerFeeds)
-	r.Register("follow", "follow a feed added by another user", "follow <feed url>", 1, false, WithLoggedIn(HandlerFollow))
-	r.Register("following", "return all feeds you are following", "following>", 0, false, WithLoggedIn(HandlerFollowing))
-	r.Register("unfollow", "unfollow a feed", "unfollow <feed url>", 1, false, WithLoggedIn(HandlerUnfollow))
-	r.Register("browse", "browse latest published posts", "browse <optional limit>", 1, true, WithLoggedIn(HandlerBrowse))
-	r.Register("removefeed", "remove an added feed", "removefeed <feed url>", 1, false, HandlerRemoveFeed)
+	r.Register("login", "login using your username", "login <username>", 1, 1, false, HandlerLogin)
+	r.Register("register", "register a username that doesn't exist", "register <username>", 1, 1, false, HandlerRegister)
+	r.Register("reset", "reset all sql tables", "reset", 0, 0, false, HandlerReset)
+	r.Register("users", "get all registered users", "users", 0, 0, false, HandlerGetUsers)
+	r.Register("agg", "aggregate followed feeds", "agg", 1, 1, false, HandlerAgg)
+	r.Register("addfeed", "add and follow a feed", "addfeed <feed name> <feed url>", 2, 2, false, WithLoggedIn(HandlerAddFeed))
+	r.Register("feeds", "return all added feeds", "feeds", 0, 0, false, HandlerFeeds)
+	r.Register("follow", "follow a feed added by another user", "follow <feed url>", 1, 1, false, WithLoggedIn(HandlerFollow))
+	r.Register("following", "return all feeds you are following", "following>", 0, 0, false, WithLoggedIn(HandlerFollowing))
+	r.Register("unfollow", "unfollow a feed", "unfollow <feed url>", 1, 1, false, WithLoggedIn(HandlerUnfollow))
+	r.Register("browse", "browse through the saved posts from feeds you followed", "browse | browse --next | browse --prev | --limit <number> can be used", 0, 3, true, WithLoggedIn(HandlerBrowse))
+	r.Register("removefeed", "remove an added feed", "removefeed <feed url>", 1, 1, false, HandlerRemoveFeed)
 }
 
 func (r *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) error {
@@ -77,13 +79,13 @@ func (r *Registry) Run(ctx context.Context, w io.Writer, s *State, cmd Command) 
 	if !ok {
 		return ErrInvalidCmd
 	}
-	if !regCmd.optional {
-		if len(cmd.Args) != regCmd.expectedArgs {
-			return fmt.Errorf("invalid number of arguments.\nUsage: %s\n", regCmd.usage)
-		}
+
+	if len(cmd.Args) < regCmd.minArgs {
+		return fmt.Errorf("not enough arguments provided.\nUsage: %s\n", regCmd.usage)
 	}
-	if len(cmd.Args) > regCmd.expectedArgs {
-		return fmt.Errorf("invalid number of optional arguments.\nUsage: %s\n", regCmd.usage)
+
+	if len(cmd.Args) > regCmd.maxArgs {
+		return fmt.Errorf("too many arguments provided.\nUsage: %s\n", regCmd.usage)
 	}
 
 	return regCmd.handler(ctx, w, s, cmd)

@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
-	"strconv"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,10 +21,12 @@ func HandlerRegister(ctx context.Context, w io.Writer, s *State, cmd Command) er
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	now := time.Now()
+
 	userArgs := database.CreateUserParams{
 		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		Name:      strings.ToLower(cmd.Args[0]), // prevent duplicates from case sensitivity.
 	}
 	user, err := s.Db.CreateUser(ctx, userArgs)
@@ -50,7 +53,7 @@ func HandlerLogin(ctx context.Context, w io.Writer, s *State, cmd Command) error
 		return err
 	}
 
-	fmt.Fprint(w, "Login successful!\n")
+	fmt.Fprintf(w, "Login successful! Welcome %s\n", user.Name)
 	return nil
 }
 
@@ -89,6 +92,9 @@ func HandlerReset(ctx context.Context, w io.Writer, s *State, cmd Command) error
 	if err := s.Db.ResetFeeds(ctx); err != nil {
 		return err
 	}
+	if err := s.Db.ResetPosts(ctx); err != nil {
+		return err
+	}
 
 	s.Config.SetUser("")
 	fmt.Fprint(w, "Tables have been successfully reset")
@@ -103,11 +109,12 @@ func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, use
 	if err := IsValidUrl(cmd.Args[1]); err != nil {
 		return fmt.Errorf("invalid URL: %v", cmd.Args[0])
 	}
+	now := time.Now()
 
 	feedParams := database.AddFeedParams{
 		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		Name:      cmd.Args[0],
 		Url:       cmd.Args[1],
 		UserID:    user.ID,
@@ -120,8 +127,8 @@ func HandlerAddFeed(ctx context.Context, w io.Writer, s *State, cmd Command, use
 
 	feedFollowParams := database.AddFeedFollowParams{
 		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		UserID:    user.ID,
 		FeedID:    feed.ID,
 	}
@@ -158,6 +165,7 @@ func HandlerFeeds(ctx context.Context, w io.Writer, s *State, cmd Command) error
 		fmt.Fprintf(w, "Feed name: %v\n", feed.Name)
 		fmt.Fprintf(w, "Feed URL: %v\n", feed.Url)
 		fmt.Fprintf(w, "Created by: %v\n", user.Name)
+		fmt.Fprintf(w, "---\n\n")
 	}
 	return nil
 }
@@ -171,10 +179,11 @@ func HandlerFollow(ctx context.Context, w io.Writer, s *State, cmd Command, user
 		return err
 	}
 
+	now := time.Now()
 	feedFollowParams := database.AddFeedFollowParams{
 		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		UserID:    user.ID,
 		FeedID:    feed.ID,
 	}
@@ -303,9 +312,9 @@ func scrapeFeeds(ctx context.Context, w io.Writer, s *State) error {
 	}
 
 	if newPosts == 0 {
-		fmt.Fprintf(w, "No new posts from feed.\n")
+		fmt.Fprintf(w, "No new posts from %v.\n", feedMeta.Name)
 	} else {
-		fmt.Fprintf(w, "%d posts added from feed.\n", newPosts)
+		fmt.Fprintf(w, "%d new posts from %v.\n", newPosts, feedMeta.Name)
 	}
 	return nil
 }
@@ -327,9 +336,12 @@ func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem,
 	if err != nil {
 		return err
 	}
-
+	uuid, err := uuid.NewV7()
+	if err != nil {
+		return err
+	}
 	postParams := database.CreatePostParams{
-		ID:          uuid.New(),
+		ID:          uuid,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		Title:       title,
@@ -349,27 +361,89 @@ func savePost(ctx context.Context, s *State, feedId uuid.UUID, post rss.RSSItem,
 }
 
 func HandlerBrowse(ctx context.Context, w io.Writer, s *State, cmd Command, user database.User) error {
+	fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+	next := fs.Bool("next", false, "show older posts")
+	prev := fs.Bool("prev", false, "show newer posts")
+	limit := fs.Int("limit", 2, "limits number of posts")
 
-	var limit int32
-	if len(cmd.Args) != 0 {
-		i, err := strconv.ParseInt(cmd.Args[0], 10, 32)
-		if err != nil {
-			return err
-		}
-		limit = int32(i)
-	} else {
-		limit = 2
+	if err := fs.Parse(cmd.Args); err != nil {
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	getPostParams := database.GetPostForUserParams{
-		UserID: user.ID,
-		Limit:  limit,
+	var userPosts []database.Post
+
+	if *next && s.Config.LastReadBottom != "" && s.Config.LastReadBottomUuid != "" {
+		pubAt, err := ParseDate(s.Config.LastReadBottom)
+		if err != nil {
+			return err
+		}
+		uuid, err := uuid.Parse(s.Config.LastReadBottomUuid)
+		if err != nil {
+			return err
+		}
+		getUserNextPostParams := database.GetUsersNextPostsParams{
+			UserID:      user.ID,
+			PublishedAt: pubAt,
+			ID:          uuid,
+			Limit:       int32(*limit),
+		}
+		nextPosts, err := s.Db.GetUsersNextPosts(ctx, getUserNextPostParams)
+		if err != nil {
+			return err
+		}
+		if len(nextPosts) < 1 {
+			return fmt.Errorf("no older posts found.")
+		}
+		userPosts = nextPosts
+	} else if *prev && s.Config.LastReadTop != "" && s.Config.LastReadTopUuid != "" {
+		pubAt, err := ParseDate(s.Config.LastReadTop)
+		if err != nil {
+			return err
+		}
+		uuid, err := uuid.Parse(s.Config.LastReadTopUuid)
+		if err != nil {
+			return err
+		}
+		getUserLastPostParams := database.GetUsersLastPostsParams{
+			UserID:      user.ID,
+			PublishedAt: pubAt,
+			ID:          uuid,
+			Limit:       int32(*limit),
+		}
+		prevPosts, err := s.Db.GetUsersLastPosts(ctx, getUserLastPostParams)
+		if err != nil {
+			return err
+		}
+		if len(prevPosts) < 1 {
+			return fmt.Errorf("no newer posts found")
+		}
+		slices.Reverse(prevPosts)
+		userPosts = prevPosts
+	} else {
+		getPostParams := database.GetPostForUserParams{
+			UserID: user.ID,
+			Limit:  int32(*limit),
+		}
+		posts, err := s.Db.GetPostForUser(ctx, getPostParams)
+		if err != nil {
+			return err
+		}
+		if len(posts) < 1 {
+			return fmt.Errorf("no posts have been added")
+		}
+		userPosts = posts
 	}
 
-	userPosts, err := s.Db.GetPostForUser(ctx, getPostParams)
+	numOfPosts := len(userPosts)
+	err := s.Config.SetLastRead(
+		userPosts[0].PublishedAt.Format(time.RFC3339),
+		userPosts[numOfPosts-1].PublishedAt.Format(time.RFC3339),
+		userPosts[0].ID.String(),
+		userPosts[numOfPosts-1].ID.String(),
+	)
 	if err != nil {
 		return err
 	}
